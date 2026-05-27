@@ -1,0 +1,11 @@
+{
+{
+  "version": "0.0.1",
+  "name": "ML Pattern Engine",
+  "developer": "YourName",
+  "description": "An intelligent pattern and outlier tracking Node Server using dynamic JSON profiles.",
+  "executable": "nodeserver.py",
+  "language": "python3",
+  "install": "install.sh"
+}
+}
