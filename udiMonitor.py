@@ -3,6 +3,8 @@ from udi_interface import Interface, Node, LOGGER
 import database
 import ml_engine
 from iox_subscriber import IoXEventSubscriber
+from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
+from event_logger import append_event_line
 
 # =========================================================================
 # DYNAMIC PROFILE DEFINITIONS (JSON Equivalent in Python)
@@ -20,24 +22,26 @@ MY_EDITORS = {
             "0": "Offline",
             "1": "Online"
         }
-    },
-    "I_BOOLEAN": {
-        "type": "range",
-        "min": 0,
-        "max": 1,
-        "desc": "Boolean Alert Status",
-        "values": {
-            "0": "Normal",
-            "1": "Anomaly Detected"
-        }
-    },
-    "I_PERCENT": {
-        "type": "range",
-        "min": 0,
-        "max": 100,
-        "desc": "Percentage"
     }
 }
+
+# Runtime config notes (PG3x customData):
+# {
+#   "eventSource": "nucore",  # or "iox"
+#   "eventLogFile": "event_stream.jsonl",
+#   "nucore": {
+#     "provider_path": "iox.IoXWrapper",  # or "package.module:FactoryOrClass"
+#     "provider_init": {
+#       "base_url": "https://eisy-ip",
+#       "username": "admin",
+#       "password": "your-password",
+#       "json_output": true,
+#       "prompt_format_type": "shared-features"
+#     },
+#     "subscribe_method": "register_callback",  # optional override for non-NuCore providers
+#     "start_method": "start"  # optional override
+#   }
+# }
 
 # 2. Dynamic Node Definitions (Replaces nodedefs.xml)
 NODE_DEFINITIONS = {
@@ -50,33 +54,12 @@ NODE_DEFINITIONS = {
         "commands": [
             {"id": "QUERY"}
         ]
-    },
-    "ANOMALY_TRACKER": {
-        "nodedef_id": "ANOMALY_TRACKER",
-        "node_type": 2,
-        "drivers": [
-            {"driver": "ST", "editor": "I_BOOLEAN", "uom": 2},     # Status (Alerting/Normal)
-            {"driver": "GV1", "editor": "I_PERCENT", "uom": 56},   # Anomaly Score (Percent)
-            {"driver": "GV2", "editor": "I_PERCENT", "uom": 56}    # Dynamic Baseline threshold 
-        ],
-        "commands": [
-            {"id": "QUERY"}
-        ]
     }
 }
 
 # =========================================================================
 # NODE IMPLEMENTATIONS
 # =========================================================================
-
-class AnomalyTrackerNode(Node):
-    id = 'ANOMALY_TRACKER'
-    commands = {'QUERY': 'query'}
-    
-    # Notice we don't have hardcoded drivers array here anymore. 
-    # The Polyglot engine pulls driver rules directly from the dynamic definition matching this ID.
-    def __init__(self, polyglot, primary, address, name):
-        super(AnomalyTrackerNode, self).__init__(polyglot, primary, address, name)
 
 class Controller(Node):
     id = 'ML_CTRL'
@@ -85,47 +68,102 @@ class Controller(Node):
     def __init__(self, polyglot, primary, address, name):
         super(Controller, self).__init__(polyglot, primary, address, name)
         self.poly = polyglot
+        self.subscriber = None
+        self.event_log_file = "event_stream.jsonl"
+        self.fallback_started = False
 
     def start(self):
         LOGGER.info("Initializing SQLite database...")
         database.init_db()
 
-        LOGGER.info("Fetching credentials from PG3x...")
+        custom_data = self.poly.config.get("customData", {})
+        if isinstance(custom_data, dict):
+            self.event_log_file = custom_data.get("eventLogFile", self.event_log_file)
+
+        source = self._get_event_source()
+        LOGGER.info(f"Event source selected: {source}")
+        LOGGER.info(f"Event log target: {self.event_log_file}")
+        if source == "nucore":
+            self._start_nucore_subscriber()
+        else:
+            self._start_iox_subscriber()
+
+    def _get_event_source(self):
+        custom_data = self.poly.config.get("customData", {})
+        if isinstance(custom_data, dict):
+            return str(custom_data.get("eventSource", "nucore")).lower()
+        return "nucore"
+
+    def _start_nucore_subscriber(self):
+        custom_data = self.poly.config.get("customData", {})
+        nucore_cfg = {}
+        if isinstance(custom_data, dict):
+            nucore_cfg = custom_data.get("nucore", {})
+
+        LOGGER.info("Starting NuCore callback subscriber...")
+        try:
+            self.subscriber = NuCoreEventSubscriber(
+                config=nucore_cfg,
+                event_callback=self.process_incoming_event,
+                error_callback=self._on_nucore_error,
+            )
+            self.subscriber.start()
+        except NuCoreSubscriberError as err:
+            LOGGER.error(f"NuCore startup failed: {err}")
+            self._on_nucore_error(err)
+
+    def _on_nucore_error(self, err):
+        LOGGER.error(f"NuCore subscriber error: {err}")
+        if self.fallback_started:
+            return
+
+        self.fallback_started = True
+        LOGGER.warn("Falling back to IoX subscriber after NuCore startup failure.")
+        self._start_iox_subscriber()
+
+    def _start_iox_subscriber(self):
+        LOGGER.info("Starting IoX fallback subscriber...")
         iox_ip = self.poly.config.get('isyIp', '127.0.0.1')
         iox_port = self.poly.config.get('isyPort', '8080')
         iox_user = self.poly.config.get('isyUser')
         iox_pass = self.poly.config.get('isyPassword')
 
-        LOGGER.info("Starting background Event Subscriber...")
         self.subscriber = IoXEventSubscriber(
             host=iox_ip,
             port=iox_port,
             username=iox_user,
             password=iox_pass,
-            event_callback=self.process_incoming_data
+            event_callback=self.process_incoming_data,
         )
         self.subscriber.start()
 
     def process_incoming_data(self, node_id, value):
-        # 1. Log to history file
+        # Backward-compatible IoX callback adapter.
+        event = {
+            "source": "iox",
+            "node_id": node_id,
+            "value": value,
+        }
+        self.process_incoming_event(event)
+
+    def process_incoming_event(self, event):
+        event = dict(event or {})
+        append_event_line(event, log_file=self.event_log_file)
+
+        node_id = event.get("node_id")
+        value = event.get("value")
+
+        if node_id is None or value is None:
+            return
+
+        # Keep DB logging active during bootstrap.
         database.log_event(node_id, value)
-        
-        # 2. Run through ML Engine
+
+        # Placeholder ML remains optional/log-only for now.
         is_anomaly, score = ml_engine.analyze_datapoint(node_id, value)
-        
+
         if is_anomaly:
             LOGGER.warn(f"ALERT: Anomaly detected on Node {node_id}! Score: {score}")
-            addr = f"anom_{node_id.lower()[:10]}"
-            
-            # Check if tracker node already exists, if not instantiate it
-            if not self.poly.getNode(addr):
-                # Under Dynamic Profiles, the node server safely builds this node using rules mapped in NODE_DEFINITIONS
-                self.poly.addNode(AnomalyTrackerNode(self.poly, self.address, addr, f"Tracker {node_id}"))
-            
-            tracker = self.poly.getNode(addr)
-            if tracker:
-                tracker.setDriver('ST', 1)      # Flashes "Anomaly Detected" in the Admin Console
-                tracker.setDriver('GV1', score)  # Sends the exact calculation percentage
 
 
 # =========================================================================
