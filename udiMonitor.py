@@ -189,13 +189,8 @@ if __name__ == "__main__":
         # Instantiate Polyglot Core
         polyglot = Interface([])
         
-        # MAGIC HAPPENS HERE: Pass your python profile configurations as arguments 
-        # during startup. Polyglot converts this seamlessly to JSON and provisions IoX.
-        polyglot.start(
-            version='1.0.0',
-            editors=MY_EDITORS,
-            nodedefs=NODE_DEFINITIONS
-        )
+        # Newer udi_interface versions do not accept dynamic profile kwargs here.
+        polyglot.start(version='1.0.0')
         
         # Build master controller
         control = Controller(polyglot, 'ml_ctrl', 'ml_ctrl', 'ML Pattern Engine')
