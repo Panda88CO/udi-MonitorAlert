@@ -2,9 +2,16 @@ import sys
 from udi_interface import Interface, Node, LOGGER
 import database
 import ml_engine
-from iox_subscriber import IoXEventSubscriber
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
 from event_logger import append_event_line
+
+try:
+    from iox_subscriber import IoXEventSubscriber
+    IOX_IMPORT_ERROR = None
+except Exception as err:
+    # Keep startup alive when IoX fallback dependency is unavailable.
+    IoXEventSubscriber = None
+    IOX_IMPORT_ERROR = err
 
 # =========================================================================
 # DYNAMIC PROFILE DEFINITIONS (JSON Equivalent in Python)
@@ -122,6 +129,13 @@ class Controller(Node):
         self._start_iox_subscriber()
 
     def _start_iox_subscriber(self):
+        if IoXEventSubscriber is None:
+            LOGGER.error(
+                "IoX subscriber unavailable: %s. Install dependencies with python3 -m pip install -r requirements.txt",
+                IOX_IMPORT_ERROR,
+            )
+            return
+
         LOGGER.info("Starting IoX fallback subscriber...")
         iox_ip = self.poly.config.get('isyIp', '127.0.0.1')
         iox_port = self.poly.config.get('isyPort', '8080')

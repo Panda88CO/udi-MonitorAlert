@@ -1,5 +1,5 @@
 #!/bin/sh
 echo "Installing Python dependencies..."
-pip install --upgrade pip
-pip install -r requirements.txt --user
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt --user
 echo "Installation Finished successfully."
