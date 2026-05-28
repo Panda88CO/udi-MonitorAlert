@@ -1,0 +1,96 @@
+2026-05-28 11:28:27.124 MainThread udi_interface      INFO     polylogger:set_basic_config: set_basic_config: enable=True level=30
+2026-05-28 11:28:27.124 MainThread udi_interface      INFO     __init__:<module>: UDI interface initializing
+2026-05-28 11:28:27.124 MainThread udi_interface      INFO     __init__:<module>: User=None
+2026-05-28 11:28:27.124 MainThread udi_interface      INFO     __init__:<module>: Home=/home/admin
+2026-05-28 11:28:27.124 MainThread udi_interface      INFO     __init__:<module>: Node Server Path=/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert
+2026-05-28 11:28:27.124 MainThread udi_interface      INFO     __init__:<module>: PG3INIT=eyJ1dWlkIjoiMDA6MjE6Yjk6MDI6NmQ6Y2QiLCJwcm9maWxlTnVtIjoxMSwibG9nTGV2ZWwiOiJJTkZPIiwidG9rZW4iOiIpTE0rSVBNNCZIKSlBaG1nIiwibXF0dEhvc3QiOiJsb2NhbGhvc3QiLCJtcXR0UG9ydCI6ODg4Mywic2VjdXJlIjoxLCJpc1BHM3giOnRydWUsInBnM1ZlcnNpb24iOiIzLjQuMTgiLCJpc3lWZXJzaW9uIjoiNi4wLjUiLCJlZGl0aW9uIjoiRnJlZSJ9
+2026-05-28 11:28:27.125 MainThread udi_interface      INFO     __init__:<module>: Loading interface module
+2026-05-28 11:28:27.171 MainThread udi_interface      INFO     interface:<module>: Loading MQTT module
+2026-05-28 11:28:27.682 MainThread udi_interface      INFO     interface:<module>: MQTT module loaded
+2026-05-28 11:28:27.916 MainThread udi_interface      INFO     __init__:<module>: Loading udi_interface module
+2026-05-28 11:28:27.917 MainThread udi_interface      INFO     __init__:<module>: Loading node module
+2026-05-28 11:28:27.917 MainThread udi_interface      INFO     __init__:<module>: Loading custom module
+2026-05-28 11:28:27.917 MainThread udi_interface      INFO     __init__:<module>: Loading isy module
+2026-05-28 11:28:27.917 MainThread udi_interface      INFO     __init__:<module>: Loading OAuth module
+2026-05-28 11:28:27.918 MainThread udi_interface      INFO     __init__:<module>: UDI interface initialized
+2026-05-28 11:28:27.918 MainThread udi_interface      INFO     __init__:<module>: UDI Python Interface for Polyglot version 3 3.3.16 Starting...
+2026-05-28 11:28:27.924 MainThread udi_interface      ERROR    udi_interface:write: Traceback (most recent call last):
+2026-05-28 11:28:27.925 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/udiMonitor.py", line 5, in <module>
+2026-05-28 11:28:27.925 MainThread udi_interface      ERROR    udi_interface:write: from iox_subscriber import IoXEventSubscriber
+2026-05-28 11:28:27.925 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/iox_subscriber.py", line 3, in <module>
+2026-05-28 11:28:27.925 MainThread udi_interface      ERROR    udi_interface:write: import websocket
+2026-05-28 11:28:27.925 MainThread udi_interface      ERROR    udi_interface:write: ModuleNotFoundError
+2026-05-28 11:28:27.925 MainThread udi_interface      ERROR    udi_interface:write: :
+2026-05-28 11:28:27.925 MainThread udi_interface      ERROR    udi_interface:write: No module named 'websocket'
+2026-05-28 11:28:54.947 MainThread udi_interface      INFO     polylogger:set_basic_config: set_basic_config: enable=True level=30
+2026-05-28 11:28:54.947 MainThread udi_interface      INFO     __init__:<module>: UDI interface initializing
+2026-05-28 11:28:54.947 MainThread udi_interface      INFO     __init__:<module>: User=None
+2026-05-28 11:28:54.947 MainThread udi_interface      INFO     __init__:<module>: Home=/home/admin
+2026-05-28 11:28:54.947 MainThread udi_interface      INFO     __init__:<module>: Node Server Path=/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert
+2026-05-28 11:28:54.948 MainThread udi_interface      INFO     __init__:<module>: PG3INIT=eyJ1dWlkIjoiMDA6MjE6Yjk6MDI6NmQ6Y2QiLCJwcm9maWxlTnVtIjoxMSwibG9nTGV2ZWwiOiJJTkZPIiwidG9rZW4iOiIpTE0rSVBNNCZIKSlBaG1nIiwibXF0dEhvc3QiOiJsb2NhbGhvc3QiLCJtcXR0UG9ydCI6ODg4Mywic2VjdXJlIjoxLCJpc1BHM3giOnRydWUsInBnM1ZlcnNpb24iOiIzLjQuMTgiLCJpc3lWZXJzaW9uIjoiNi4wLjUiLCJlZGl0aW9uIjoiRnJlZSJ9
+2026-05-28 11:28:54.948 MainThread udi_interface      INFO     __init__:<module>: Loading interface module
+2026-05-28 11:28:54.990 MainThread udi_interface      INFO     interface:<module>: Loading MQTT module
+2026-05-28 11:28:55.481 MainThread udi_interface      INFO     interface:<module>: MQTT module loaded
+2026-05-28 11:28:55.699 MainThread udi_interface      INFO     __init__:<module>: Loading udi_interface module
+2026-05-28 11:28:55.699 MainThread udi_interface      INFO     __init__:<module>: Loading node module
+2026-05-28 11:28:55.699 MainThread udi_interface      INFO     __init__:<module>: Loading custom module
+2026-05-28 11:28:55.700 MainThread udi_interface      INFO     __init__:<module>: Loading isy module
+2026-05-28 11:28:55.700 MainThread udi_interface      INFO     __init__:<module>: Loading OAuth module
+2026-05-28 11:28:55.700 MainThread udi_interface      INFO     __init__:<module>: UDI interface initialized
+2026-05-28 11:28:55.700 MainThread udi_interface      INFO     __init__:<module>: UDI Python Interface for Polyglot version 3 3.3.16 Starting...
+2026-05-28 11:28:55.704 MainThread udi_interface      ERROR    udi_interface:write: Traceback (most recent call last):
+2026-05-28 11:28:55.704 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/udiMonitor.py", line 5, in <module>
+2026-05-28 11:28:55.705 MainThread udi_interface      ERROR    udi_interface:write: from iox_subscriber import IoXEventSubscriber
+2026-05-28 11:28:55.705 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/iox_subscriber.py", line 3, in <module>
+2026-05-28 11:28:55.705 MainThread udi_interface      ERROR    udi_interface:write: import websocket
+2026-05-28 11:28:55.705 MainThread udi_interface      ERROR    udi_interface:write: ModuleNotFoundError
+2026-05-28 11:28:55.705 MainThread udi_interface      ERROR    udi_interface:write: :
+2026-05-28 11:28:55.705 MainThread udi_interface      ERROR    udi_interface:write: No module named 'websocket'
+2026-05-28 11:29:26.755 MainThread udi_interface      INFO     polylogger:set_basic_config: set_basic_config: enable=True level=30
+2026-05-28 11:29:26.755 MainThread udi_interface      INFO     __init__:<module>: UDI interface initializing
+2026-05-28 11:29:26.755 MainThread udi_interface      INFO     __init__:<module>: User=None
+2026-05-28 11:29:26.756 MainThread udi_interface      INFO     __init__:<module>: Home=/home/admin
+2026-05-28 11:29:26.756 MainThread udi_interface      INFO     __init__:<module>: Node Server Path=/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert
+2026-05-28 11:29:26.756 MainThread udi_interface      INFO     __init__:<module>: PG3INIT=eyJ1dWlkIjoiMDA6MjE6Yjk6MDI6NmQ6Y2QiLCJwcm9maWxlTnVtIjoxMSwibG9nTGV2ZWwiOiJJTkZPIiwidG9rZW4iOiIpTE0rSVBNNCZIKSlBaG1nIiwibXF0dEhvc3QiOiJsb2NhbGhvc3QiLCJtcXR0UG9ydCI6ODg4Mywic2VjdXJlIjoxLCJpc1BHM3giOnRydWUsInBnM1ZlcnNpb24iOiIzLjQuMTgiLCJpc3lWZXJzaW9uIjoiNi4wLjUiLCJlZGl0aW9uIjoiRnJlZSJ9
+2026-05-28 11:29:26.756 MainThread udi_interface      INFO     __init__:<module>: Loading interface module
+2026-05-28 11:29:26.798 MainThread udi_interface      INFO     interface:<module>: Loading MQTT module
+2026-05-28 11:29:27.291 MainThread udi_interface      INFO     interface:<module>: MQTT module loaded
+2026-05-28 11:29:27.509 MainThread udi_interface      INFO     __init__:<module>: Loading udi_interface module
+2026-05-28 11:29:27.509 MainThread udi_interface      INFO     __init__:<module>: Loading node module
+2026-05-28 11:29:27.509 MainThread udi_interface      INFO     __init__:<module>: Loading custom module
+2026-05-28 11:29:27.509 MainThread udi_interface      INFO     __init__:<module>: Loading isy module
+2026-05-28 11:29:27.509 MainThread udi_interface      INFO     __init__:<module>: Loading OAuth module
+2026-05-28 11:29:27.510 MainThread udi_interface      INFO     __init__:<module>: UDI interface initialized
+2026-05-28 11:29:27.510 MainThread udi_interface      INFO     __init__:<module>: UDI Python Interface for Polyglot version 3 3.3.16 Starting...
+2026-05-28 11:29:27.514 MainThread udi_interface      ERROR    udi_interface:write: Traceback (most recent call last):
+2026-05-28 11:29:27.514 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/udiMonitor.py", line 5, in <module>
+2026-05-28 11:29:27.514 MainThread udi_interface      ERROR    udi_interface:write: from iox_subscriber import IoXEventSubscriber
+2026-05-28 11:29:27.514 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/iox_subscriber.py", line 3, in <module>
+2026-05-28 11:29:27.515 MainThread udi_interface      ERROR    udi_interface:write: import websocket
+2026-05-28 11:29:27.515 MainThread udi_interface      ERROR    udi_interface:write: ModuleNotFoundError
+2026-05-28 11:29:27.515 MainThread udi_interface      ERROR    udi_interface:write: :
+2026-05-28 11:29:27.515 MainThread udi_interface      ERROR    udi_interface:write: No module named 'websocket'
+2026-05-28 11:29:58.514 MainThread udi_interface      INFO     polylogger:set_basic_config: set_basic_config: enable=True level=30
+2026-05-28 11:29:58.514 MainThread udi_interface      INFO     __init__:<module>: UDI interface initializing
+2026-05-28 11:29:58.514 MainThread udi_interface      INFO     __init__:<module>: User=None
+2026-05-28 11:29:58.514 MainThread udi_interface      INFO     __init__:<module>: Home=/home/admin
+2026-05-28 11:29:58.514 MainThread udi_interface      INFO     __init__:<module>: Node Server Path=/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert
+2026-05-28 11:29:58.514 MainThread udi_interface      INFO     __init__:<module>: PG3INIT=eyJ1dWlkIjoiMDA6MjE6Yjk6MDI6NmQ6Y2QiLCJwcm9maWxlTnVtIjoxMSwibG9nTGV2ZWwiOiJJTkZPIiwidG9rZW4iOiIpTE0rSVBNNCZIKSlBaG1nIiwibXF0dEhvc3QiOiJsb2NhbGhvc3QiLCJtcXR0UG9ydCI6ODg4Mywic2VjdXJlIjoxLCJpc1BHM3giOnRydWUsInBnM1ZlcnNpb24iOiIzLjQuMTgiLCJpc3lWZXJzaW9uIjoiNi4wLjUiLCJlZGl0aW9uIjoiRnJlZSJ9
+2026-05-28 11:29:58.515 MainThread udi_interface      INFO     __init__:<module>: Loading interface module
+2026-05-28 11:29:58.557 MainThread udi_interface      INFO     interface:<module>: Loading MQTT module
+2026-05-28 11:29:59.051 MainThread udi_interface      INFO     interface:<module>: MQTT module loaded
+2026-05-28 11:29:59.270 MainThread udi_interface      INFO     __init__:<module>: Loading udi_interface module
+2026-05-28 11:29:59.270 MainThread udi_interface      INFO     __init__:<module>: Loading node module
+2026-05-28 11:29:59.270 MainThread udi_interface      INFO     __init__:<module>: Loading custom module
+2026-05-28 11:29:59.270 MainThread udi_interface      INFO     __init__:<module>: Loading isy module
+2026-05-28 11:29:59.270 MainThread udi_interface      INFO     __init__:<module>: Loading OAuth module
+2026-05-28 11:29:59.271 MainThread udi_interface      INFO     __init__:<module>: UDI interface initialized
+2026-05-28 11:29:59.271 MainThread udi_interface      INFO     __init__:<module>: UDI Python Interface for Polyglot version 3 3.3.16 Starting...
+2026-05-28 11:29:59.275 MainThread udi_interface      ERROR    udi_interface:write: Traceback (most recent call last):
+2026-05-28 11:29:59.275 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/udiMonitor.py", line 5, in <module>
+2026-05-28 11:29:59.275 MainThread udi_interface      ERROR    udi_interface:write: from iox_subscriber import IoXEventSubscriber
+2026-05-28 11:29:59.275 MainThread udi_interface      ERROR    udi_interface:write: File "/usr/home/admin/UDI/udi-MonitorAlert/udi-MonitorAlert/iox_subscriber.py", line 3, in <module>
+2026-05-28 11:29:59.276 MainThread udi_interface      ERROR    udi_interface:write: import websocket
+2026-05-28 11:29:59.276 MainThread udi_interface      ERROR    udi_interface:write: ModuleNotFoundError
+2026-05-28 11:29:59.276 MainThread udi_interface      ERROR    udi_interface:write: :
+2026-05-28 11:29:59.276 MainThread udi_interface      ERROR    udi_interface:write: No module named 'websocket'
