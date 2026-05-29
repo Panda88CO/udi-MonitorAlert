@@ -347,7 +347,7 @@ class Controller(Node):
         value = event.get("value")
         control = event.get("control")
         name = event.get("fmtName")
-        action = event.get("fmtAction")
+        action = event.get("fmtAct")
         event_time = event_time_to_ms(event)
 
         LOGGER.debug("Event callback received: source=%s node_id=%s control=%s value=%s name=%s action=%s time=%s", event.get("source"), node_id, control,  value , name, action, event_time)
