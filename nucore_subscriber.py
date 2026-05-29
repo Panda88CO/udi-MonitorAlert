@@ -30,9 +30,17 @@ class NuCoreEventSubscriber:
 
     def _validate_config(self):
         provider_path = self.config.get("provider_path")
-        if not provider_path or ":" not in provider_path:
+        if not provider_path or not isinstance(provider_path, str):
             raise NuCoreSubscriberError(
-                "Missing/invalid NuCore provider_path. Expected format module.path:FactoryOrClass"
+                "Missing/invalid NuCore provider_path. Expected module.path:FactoryOrClass or module.path.FactoryOrClass"
+            )
+
+        # Validate format by trying to split using supported syntaxes.
+        try:
+            self._split_provider_path(provider_path)
+        except NuCoreSubscriberError as err:
+            raise NuCoreSubscriberError(
+                f"Missing/invalid NuCore provider_path. {err}"
             )
 
     def _run(self):
@@ -132,7 +140,7 @@ class NuCoreEventSubscriber:
             LOGGER.info("NuCore event stream connected.")
 
         async def on_disconnect():
-            LOGGER.warn("NuCore event stream disconnected.")
+            LOGGER.warning("NuCore event stream disconnected.")
 
         subscribe_events_method(
             on_message_callback=on_message,
@@ -155,7 +163,7 @@ class NuCoreEventSubscriber:
             except TypeError:
                 continue
             except Exception as err:
-                LOGGER.warn(f"NuCore callback registration attempt failed: {err}")
+                LOGGER.warning(f"NuCore callback registration attempt failed: {err}")
                 continue
 
         return False

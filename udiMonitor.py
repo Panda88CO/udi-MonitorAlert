@@ -1,4 +1,6 @@
 import sys
+import os
+import json
 from udi_interface import Interface, Node, LOGGER
 import database
 import ml_engine
@@ -64,6 +66,25 @@ NODE_DEFINITIONS = {
     }
 }
 
+DEFAULT_NUCORE_CONFIG = {
+    "provider_path": "iox.IoXWrapper",
+    "provider_init": {
+        "base_url": "https://192.168.1.204",
+        "username": os.getenv("NUCORE_USERNAME", "christian.olgaard@gmail.com"),
+        "password": os.getenv("NUCORE_PASSWORD", "coe123COE"),
+        "json_output": True,
+        "prompt_format_type": "shared-features",
+    },
+}
+
+DEFAULT_IOX_CONFIG = {
+    "host": "192.168.1.204",
+    "port": "443",
+    "secure": True,
+    "username": os.getenv("IOX_USERNAME", "christian.olgaard@gmail.com"),
+    "password": os.getenv("IOX_PASSWORD", "coe123COE"),
+}
+
 # =========================================================================
 # NODE IMPLEMENTATIONS
 # =========================================================================
@@ -78,6 +99,13 @@ class Controller(Node):
         self.subscriber = None
         self.event_log_file = "event_stream.jsonl"
         self.fallback_started = False
+
+        # Explicitly bind lifecycle handlers so startup always runs under PG3x.
+        self.poly.subscribe(self.poly.START, self.start, self.address)
+        self.poly.subscribe(self.poly.STOP, self.stop)
+
+    def stop(self):
+        LOGGER.info("Controller stop received.")
 
     def start(self):
         LOGGER.info("Initializing SQLite database...")
@@ -107,6 +135,13 @@ class Controller(Node):
         if isinstance(custom_data, dict):
             nucore_cfg = custom_data.get("nucore", {})
 
+        if not isinstance(nucore_cfg, dict) or not nucore_cfg.get("provider_path"):
+            LOGGER.warning("NuCore config missing in customData. Using built-in defaults.")
+            nucore_cfg = {
+                "provider_path": DEFAULT_NUCORE_CONFIG["provider_path"],
+                "provider_init": dict(DEFAULT_NUCORE_CONFIG["provider_init"]),
+            }
+
         LOGGER.info("Starting NuCore callback subscriber...")
         try:
             self.subscriber = NuCoreEventSubscriber(
@@ -125,7 +160,7 @@ class Controller(Node):
             return
 
         self.fallback_started = True
-        LOGGER.warn("Falling back to IoX subscriber after NuCore startup failure.")
+        LOGGER.warning("Falling back to IoX subscriber after NuCore startup failure.")
         self._start_iox_subscriber()
 
     def _start_iox_subscriber(self):
@@ -137,47 +172,115 @@ class Controller(Node):
             return
 
         LOGGER.info("Starting IoX fallback subscriber...")
-        iox_ip = self.poly.config.get('isyIp', '127.0.0.1')
-        iox_port = self.poly.config.get('isyPort', '8080')
-        iox_user = self.poly.config.get('isyUser')
-        iox_pass = self.poly.config.get('isyPassword')
+        custom_data = self.poly.config.get("customData", {})
+        iox_cfg = custom_data.get("iox", {}) if isinstance(custom_data, dict) else {}
+        custom_iox_user = custom_data.get("ioxUser") if isinstance(custom_data, dict) else None
+        custom_iox_pass = custom_data.get("ioxPassword") if isinstance(custom_data, dict) else None
+
+        iox_ip = (
+            self.poly.config.get('isyIp')
+            or iox_cfg.get("host")
+            or iox_cfg.get("ip")
+            or DEFAULT_IOX_CONFIG["host"]
+        )
+        iox_port = (
+            self.poly.config.get('isyPort')
+            or iox_cfg.get("port")
+            or DEFAULT_IOX_CONFIG["port"]
+        )
+        iox_secure = iox_cfg.get("secure", DEFAULT_IOX_CONFIG["secure"])
+        if isinstance(iox_secure, str):
+            iox_secure = iox_secure.strip().lower() in ("1", "true", "yes", "on")
+        iox_user = (
+            self.poly.config.get('isyUser')
+            or iox_cfg.get("username")
+            or iox_cfg.get("user")
+            or custom_iox_user
+            or DEFAULT_IOX_CONFIG["username"]
+        )
+        iox_pass = (
+            self.poly.config.get('isyPassword')
+            or iox_cfg.get("password")
+            or custom_iox_pass
+            or DEFAULT_IOX_CONFIG["password"]
+        )
+
+        if not iox_user or not iox_pass:
+            LOGGER.error("IoX credentials are missing; set isyUser/isyPassword or IOX_USERNAME/IOX_PASSWORD.")
+            return
+
+        LOGGER.info(
+            "IoX fallback config: host=%s port=%s secure=%s username=%s",
+            iox_ip,
+            iox_port,
+            iox_secure,
+            iox_user,
+        )
 
         self.subscriber = IoXEventSubscriber(
             host=iox_ip,
             port=iox_port,
             username=iox_user,
             password=iox_pass,
+            secure=iox_secure,
             event_callback=self.process_incoming_data,
         )
         self.subscriber.start()
 
-    def process_incoming_data(self, node_id, value):
+    def process_incoming_data(self, node_or_event, value=None):
         # Backward-compatible IoX callback adapter.
-        event = {
-            "source": "iox",
-            "node_id": node_id,
-            "value": value,
-        }
+        if isinstance(node_or_event, dict):
+            event = dict(node_or_event)
+            event.setdefault("source", "iox")
+        else:
+            event = {
+                "source": "iox",
+                "node_id": node_or_event,
+                "value": value,
+            }
         self.process_incoming_event(event)
 
     def process_incoming_event(self, event):
         event = dict(event or {})
-        append_event_line(event, log_file=self.event_log_file)
 
+        if "node_id" not in event:
+            event["node_id"] = event.get("node") or event.get("address")
+
+        if event.get("value") is None:
+            values = event.get("values")
+            if isinstance(values, dict) and values:
+                # Prefer ST when present, otherwise take first available driver value.
+                if "ST" in values:
+                    event["value"] = values["ST"]
+                    event.setdefault("control", "ST")
+                else:
+                    first_control = next(iter(values.keys()))
+                    event.setdefault("control", first_control)
+                    event["value"] = values[first_control]
+
+        if event.get("value") is None and event.get("action") is not None:
+            event["value"] = event.get("action")
+
+        append_event_line(event, log_file=self.event_log_file)
+        LOGGER.debug("Callback payload (full): %s", json.dumps(event, default=str, separators=(",", ":"), sort_keys=True))
+        
         node_id = event.get("node_id")
         value = event.get("value")
 
+        LOGGER.debug("Event callback received: source=%s node_id=%s value=%s", event.get("source"), node_id, value)
+
         if node_id is None or value is None:
+            LOGGER.debug("Ignoring event without node_id/value keys: keys=%s", sorted(event.keys()))
             return
 
         # Keep DB logging active during bootstrap.
-        database.log_event(node_id, value)
+        #database.log_event(node_id, value)
 
         # Placeholder ML remains optional/log-only for now.
-        is_anomaly, score = ml_engine.analyze_datapoint(node_id, value)
+        #is_anomaly, score = ml_engine.analyze_datapoint(node_id, value)
 
-        if is_anomaly:
-            LOGGER.warn(f"ALERT: Anomaly detected on Node {node_id}! Score: {score}")
+        #if is_anomaly:
+        #    LOGGER.warn(f"ALERT: Anomaly detected on Node {node_id}! Score: {score}")
 
 
 # =========================================================================
@@ -188,14 +291,17 @@ if __name__ == "__main__":
     try:
         # Instantiate Polyglot Core
         polyglot = Interface([])
-        
-        # Newer udi_interface versions do not accept dynamic profile kwargs here.
-        polyglot.start(version='1.0.0')
-        
+
+        # Use dict-style startup options for PG3/PG3x compatibility.
+        polyglot.start({"version": "1.0.0", "requestId": True})
+
         # Build master controller
         control = Controller(polyglot, 'ml_ctrl', 'ml_ctrl', 'ML Pattern Engine')
-        
+
+        # Register controller so it appears as an IoX node.
+        polyglot.addNode(control, conn_status='ST', rename=True)
+
         polyglot.ready()
-        polyglot.runLoop()
+        polyglot.runForever()
     except (KeyboardInterrupt, SystemExit):
         sys.exit(0)

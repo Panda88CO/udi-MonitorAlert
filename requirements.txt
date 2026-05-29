@@ -1,2 +1,2 @@
-udi_interface>=3.4.6
+udi_interface>=3.4.5
 websocket-client>=1.5.0
