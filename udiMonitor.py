@@ -85,7 +85,7 @@ MY_EDITORS = {
 
 # Runtime config notes (PG3x customData):
 # {
-#   "eventSource": "nucore",  # or "iox"
+#   "eventSource": "iox",  # set to "nucore" only when NuCore provider is installed/configured
 #   "eventLogFile": "event_stream.jsonl",
 #   "nucore": {
 #     "provider_path": "iox.IoXWrapper",  # or "package.module:FactoryOrClass"
@@ -175,8 +175,8 @@ class Controller(Node):
     def _get_event_source(self):
         custom_data = self.poly.config.get("customData", {})
         if isinstance(custom_data, dict):
-            return str(custom_data.get("eventSource", "nucore")).lower()
-        return "nucore"
+            return str(custom_data.get("eventSource", "iox")).lower()
+        return "iox"
 
     def _start_nucore_subscriber(self):
         custom_data = self.poly.config.get("customData", {})
