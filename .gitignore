@@ -5,3 +5,5 @@ logs/debug.log
 *.pid
 logs/debug.log
 event_stream.jsonl
+*.jsonl
+*.log

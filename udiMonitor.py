@@ -47,6 +47,34 @@ def event_time_to_ms(event: dict) -> int | None:
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
 
+
+def _truncate_file(path):
+    """Truncate a file in place, creating parent directories as needed."""
+    try:
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(path, "w", encoding="utf-8"):
+            pass
+        LOGGER.info("Startup cleanup: truncated %s", path)
+    except OSError as exc:
+        LOGGER.warning("Startup cleanup: could not truncate %s: %s", path, exc)
+
+
+def cleanup_startup_files(event_log_file="event_stream.jsonl"):
+    """Clear runtime log/event files so each startup begins with fresh data."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    debug_log_path = os.path.join(base_dir, "logs", "debug.log")
+
+    _truncate_file(debug_log_path)
+    _truncate_file(EVENT_LOG_PATH)
+
+    if not os.path.isabs(event_log_file):
+        event_log_path = os.path.join(base_dir, event_log_file)
+    else:
+        event_log_path = event_log_file
+    _truncate_file(event_log_path)
+
 def log_event_to_file(source, node_id, control, value, name, action, event_time):
     """Append a single event-callback record as a JSON line to EVENT_LOG_PATH."""
     record = {
@@ -157,12 +185,14 @@ class Controller(Node):
         LOGGER.info("Controller stop received.")
 
     def start(self):
-        LOGGER.info("Initializing SQLite database...")
-        database.init_db()
-
         custom_data = self.poly.config.get("customData", {})
         if isinstance(custom_data, dict):
             self.event_log_file = custom_data.get("eventLogFile", self.event_log_file)
+
+        cleanup_startup_files(self.event_log_file)
+
+        LOGGER.info("Initializing SQLite database...")
+        database.init_db()
 
         source = self._get_event_source()
         LOGGER.info(f"Event source selected: {source}")
@@ -343,6 +373,8 @@ class Controller(Node):
 
 if __name__ == "__main__":
     try:
+        cleanup_startup_files("event_stream.jsonl")
+
         # Instantiate Polyglot Core
         polyglot = Interface([])
 
