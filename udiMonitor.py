@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+from datetime import datetime, timezone
 from udi_interface import Interface, Node, LOGGER
 import database
 import ml_engine
@@ -14,6 +15,54 @@ except Exception as err:
     # Keep startup alive when IoX fallback dependency is unavailable.
     IoXEventSubscriber = None
     IOX_IMPORT_ERROR = err
+
+# =========================================================================
+# UTILITY
+# =========================================================================
+
+def event_time_to_ms(event: dict) -> int | None:
+    """Return the top-level event timestamp as Unix time in milliseconds.
+
+    Accepts an event dict whose ``timestamp`` value is either:
+    - an ISO 8601 string  (e.g. ``"2026-05-29T17:48:47.990268+00:00"``)
+    - a ``datetime`` object
+
+    Returns ``None`` when the timestamp is missing or cannot be parsed.
+    """
+    ts = event.get("timestamp")
+    if ts is None:
+        return None
+    if isinstance(ts, datetime):
+        dt = ts
+    else:
+        try:
+            dt = datetime.fromisoformat(str(ts))
+        except ValueError:
+            return None
+    # Ensure the datetime is timezone-aware; treat naive as UTC.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return int(dt.timestamp() * 1000)
+
+
+EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
+
+def log_event_to_file(source, node_id, control, value, name, action, event_time):
+    """Append a single event-callback record as a JSON line to EVENT_LOG_PATH."""
+    record = {
+        "source": source,
+        "node_id": node_id,
+        "control": control,
+        "value": value,
+        "name": name,
+        "action": action,
+        "event_time_ms": event_time,
+    }
+    try:
+        with open(EVENT_LOG_PATH, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+    except OSError as exc:
+        LOGGER.warning("log_event_to_file: could not write to %s: %s", EVENT_LOG_PATH, exc)
 
 # =========================================================================
 # DYNAMIC PROFILE DEFINITIONS (JSON Equivalent in Python)
@@ -262,12 +311,17 @@ class Controller(Node):
             event["value"] = event.get("action")
 
         append_event_line(event, log_file=self.event_log_file)
-        LOGGER.debug("Callback payload (full): %s", json.dumps(event, default=str, separators=(",", ":"), sort_keys=True))
+        #LOGGER.debug("Callback payload (full): %s", json.dumps(event, default=str, separators=(",", ":"), sort_keys=True))
         
         node_id = event.get("node_id")
         value = event.get("value")
+        control = event.get("control")
+        name = event.get("ftmName")
+        action = event.get("ftmAction")
+        event_time = event_time_to_ms(event)
 
-        LOGGER.debug("Event callback received: source=%s node_id=%s value=%s", event.get("source"), node_id, value)
+        LOGGER.debug("Event callback received: source=%s node_id=%s control=%s value=%s name=%s action=%s time=%s", event.get("source"), node_id, control,  value , name, action, event_time)
+        log_event_to_file(event.get("source"), node_id, control, value, name, action, event_time)
 
         if node_id is None or value is None:
             LOGGER.debug("Ignoring event without node_id/value keys: keys=%s", sorted(event.keys()))
