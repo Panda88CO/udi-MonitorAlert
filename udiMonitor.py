@@ -1,8 +1,9 @@
 import sys
 import os
 import json
+from urllib.parse import urlparse
 from datetime import datetime, timezone
-from udi_interface import Interface, Node, LOGGER
+from udi_interface import Interface, Node, LOGGER, Custom
 import database
 import ml_engine
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
@@ -146,7 +147,7 @@ NODE_DEFINITIONS = {
 DEFAULT_NUCORE_CONFIG = {
     "provider_path": "iox.IoXWrapper",
     "provider_init": {
-        "base_url": "https://192.168.1.204",
+        "base_url": "https://192.168.1.240",
         "username": os.getenv("NUCORE_USERNAME", "christian.olgaard@gmail.com"),
         "password": os.getenv("NUCORE_PASSWORD", "coe123COE"),
         "json_output": True,
@@ -176,10 +177,35 @@ class Controller(Node):
         self.subscriber = None
         self.event_log_file = "event_stream.jsonl"
         self.fallback_started = False
-
+        self.custom_params = Custom(self.poly, "customparams")
         # Explicitly bind lifecycle handlers so startup always runs under PG3x.
         self.poly.subscribe(self.poly.START, self.start, self.address)
         self.poly.subscribe(self.poly.STOP, self.stop)
+        self.poly.subscribe(self.poly.CUSTOMPARAMS, self.handle_custom_params)
+
+    def handle_custom_params(self, params):
+        if isinstance(params, dict):
+            self.custom_params = dict(params)
+        else:
+            self.custom_params = {}
+
+        has_eisy_ip = bool(self.custom_params.get("eISY_IP") or self.custom_params.get("EISY_IP"))
+        has_username = bool(self.custom_params.get("username") or self.custom_params.get("USERNAME"))
+        has_password = bool(self.custom_params.get("password") or self.custom_params.get("PASSWORD"))
+        LOGGER.info(
+            "customParams updated: eISY_IP=%s username=%s password=%s",
+            has_eisy_ip,
+            has_username,
+            has_password,
+        )
+
+    def _get_custom_params(self):
+        if isinstance(self.custom_params, dict) and self.custom_params:
+            return self.custom_params
+        params = self.poly.config.get("customParams", {})
+        if isinstance(params, dict):
+            return params
+        return {}
 
     def stop(self):
         LOGGER.info("Controller stop received.")
@@ -210,6 +236,7 @@ class Controller(Node):
 
     def _start_nucore_subscriber(self):
         custom_data = self.poly.config.get("customData", {})
+        custom_params = self._get_custom_params()
         nucore_cfg = {}
         if isinstance(custom_data, dict):
             nucore_cfg = custom_data.get("nucore", {})
@@ -220,6 +247,27 @@ class Controller(Node):
                 "provider_path": DEFAULT_NUCORE_CONFIG["provider_path"],
                 "provider_init": dict(DEFAULT_NUCORE_CONFIG["provider_init"]),
             }
+
+        provider_init = dict(nucore_cfg.get("provider_init", {}))
+        custom_eisy_ip = custom_params.get("eISY_IP") or custom_params.get("EISY_IP")
+        custom_username = custom_params.get("username") or custom_params.get("USERNAME")
+        custom_password = custom_params.get("password") or custom_params.get("PASSWORD")
+
+        if custom_eisy_ip:
+            provider_init["base_url"] = custom_eisy_ip
+        if custom_username:
+            provider_init["username"] = custom_username
+        if custom_password:
+            provider_init["password"] = custom_password
+
+        nucore_cfg["provider_init"] = provider_init
+
+        LOGGER.info(
+            "NuCore provider_init resolved: base_url=%s username=%s password=%s",
+            bool(provider_init.get("base_url")),
+            bool(provider_init.get("username")),
+            bool(provider_init.get("password")),
+        )
 
         LOGGER.info("Starting NuCore callback subscriber...")
         try:
@@ -252,25 +300,51 @@ class Controller(Node):
 
         LOGGER.info("Starting IoX fallback subscriber...")
         custom_data = self.poly.config.get("customData", {})
+        custom_params = self._get_custom_params()
         iox_cfg = custom_data.get("iox", {}) if isinstance(custom_data, dict) else {}
         custom_iox_user = custom_data.get("ioxUser") if isinstance(custom_data, dict) else None
         custom_iox_pass = custom_data.get("ioxPassword") if isinstance(custom_data, dict) else None
 
+        custom_eisy_ip = custom_params.get("eISY_IP") or custom_params.get("EISY_IP")
+        custom_username = custom_params.get("username") or custom_params.get("USERNAME")
+        custom_password = custom_params.get("password") or custom_params.get("PASSWORD")
+
+        custom_iox_host = None
+        custom_iox_port = None
+        custom_iox_secure = None
+        if custom_eisy_ip:
+            raw_eisy = str(custom_eisy_ip).strip()
+            parsed = urlparse(raw_eisy if "://" in raw_eisy else f"https://{raw_eisy}")
+            if parsed.hostname:
+                custom_iox_host = parsed.hostname
+                if parsed.port:
+                    custom_iox_port = str(parsed.port)
+                if parsed.scheme:
+                    custom_iox_secure = parsed.scheme.lower() == "https"
+            else:
+                custom_iox_host = raw_eisy
+
         iox_ip = (
+            custom_iox_host
+            or
             self.poly.config.get('isyIp')
             or iox_cfg.get("host")
             or iox_cfg.get("ip")
             or DEFAULT_IOX_CONFIG["host"]
         )
         iox_port = (
+            custom_iox_port
+            or
             self.poly.config.get('isyPort')
             or iox_cfg.get("port")
             or DEFAULT_IOX_CONFIG["port"]
         )
-        iox_secure = iox_cfg.get("secure", DEFAULT_IOX_CONFIG["secure"])
+        iox_secure = custom_iox_secure if custom_iox_secure is not None else iox_cfg.get("secure", DEFAULT_IOX_CONFIG["secure"])
         if isinstance(iox_secure, str):
             iox_secure = iox_secure.strip().lower() in ("1", "true", "yes", "on")
         iox_user = (
+            custom_username
+            or
             self.poly.config.get('isyUser')
             or iox_cfg.get("username")
             or iox_cfg.get("user")
@@ -278,6 +352,8 @@ class Controller(Node):
             or DEFAULT_IOX_CONFIG["username"]
         )
         iox_pass = (
+            custom_password
+            or
             self.poly.config.get('isyPassword')
             or iox_cfg.get("password")
             or custom_iox_pass
@@ -380,6 +456,7 @@ if __name__ == "__main__":
 
         # Use dict-style startup options for PG3/PG3x compatibility.
         polyglot.start({"version": "1.0.0", "requestId": True})
+        polyglot.setCustomParamsDoc()
 
         # Build master controller
         control = Controller(polyglot, 'ml_ctrl', 'ml_ctrl', 'ML Pattern Engine')

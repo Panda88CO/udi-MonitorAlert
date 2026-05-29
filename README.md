@@ -58,6 +58,21 @@ Notes:
 
 - `provider_path` also supports `module:ClassName` format.
 - If NuCore startup fails, the node server falls back to IoX subscriber mode.
+- You can provide connection values in PG3 custom parameters using `eISY_IP`, `username`, and `password` (or uppercase variants).
+- For NuCore, `eISY_IP` is mapped to `customData.nucore.provider_init.base_url` at startup.
+- For IoX fallback, `eISY_IP` is parsed as host or URL and mapped to IoX `host`/`port`/`secure` when provided.
+
+## PG3x customParams Example
+
+Use these PG3x custom parameters to drive both NuCore startup and IoX fallback:
+
+```json
+{
+  "eISY_IP": "https://YOUR_EISY_IP:443",
+  "username": "admin",
+  "password": "YOUR_PASSWORD"
+}
+```
 
 ## Event Log Output
 
