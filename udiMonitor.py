@@ -416,7 +416,7 @@ class Controller(Node):
         if event.get("value") is None and event.get("action") is not None:
             event["value"] = event.get("action")
 
-        append_event_line(event, log_file=self.event_log_file)
+        #append_event_line(event, log_file=self.event_log_file)
         #LOGGER.debug("Callback payload (full): %s", json.dumps(event, default=str, separators=(",", ":"), sort_keys=True))
         
         node_id = event.get("node_id")
