@@ -88,7 +88,7 @@ def cleanup_startup_files(event_log_file="event_stream.jsonl"):
         event_log_path = event_log_file
     _truncate_file(event_log_path)
 
-def log_event_to_file() node_id, control, value, name, action, event_time):
+def log_event_to_file( node_id, control, value, name, action, event_time):
     """Append a single event-callback record as a JSON line to EVENT_LOG_PATH."""
     record = {
         "node_id": node_id,
