@@ -49,6 +49,10 @@ def event_time_to_ms(event: dict) -> int | None:
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
 
 
+def current_time_ms() -> int:
+    return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
 def _truncate_file(path):
     """Truncate a file in place, creating parent directories as needed."""
     try:
@@ -206,6 +210,13 @@ class Controller(Node):
         if isinstance(params, dict):
             return params
         return {}
+
+    def _is_valid_dynamic_event(self, node_id, control, value):
+        if node_id is None or control is None or value is None:
+            return False
+        if str(node_id).strip() == "" or str(control).strip() == "":
+            return False
+        return True
 
     def stop(self):
         LOGGER.info("Controller stop received.")
@@ -424,17 +435,42 @@ class Controller(Node):
         control = event.get("control")
         name = event.get("fmtName")
         action = event.get("fmtAct")
+        uom = event.get("uom")
         event_time = event_time_to_ms(event)
+        if event_time is None:
+            # Prefer source event time; fall back only when upstream omits timestamp.
+            event_time = current_time_ms()
 
         LOGGER.debug("Event callback received: source=%s node_id=%s control=%s value=%s name=%s action=%s time=%s", event.get("source"), node_id, control,  value , name, action, event_time)
         log_event_to_file(event.get("source"), node_id, control, value, name, action, event_time)
 
-        if node_id is None or value is None:
+        if node_id is not None and control is not None:
+            try:
+                database.upsert_static_metadata(
+                    node_id=str(node_id),
+                    control=str(control),
+                    name=None if name is None else str(name),
+                    action=None if action is None else str(action),
+                    uom=uom,
+                    event_time_ms=event_time,
+                )
+            except Exception as exc:
+                LOGGER.warning("Failed static metadata upsert: node=%s control=%s err=%s", node_id, control, exc)
+
+        if not self._is_valid_dynamic_event(node_id, control, value):
             LOGGER.debug("Ignoring event without node_id/value keys: keys=%s", sorted(event.keys()))
             return
 
-        # Keep DB logging active during bootstrap.
-        #database.log_event(node_id, value)
+        try:
+            database.insert_dynamic_event(
+                source=event.get("source"),
+                node_id=str(node_id),
+                control=str(control),
+                value=value,
+                event_time_ms=event_time,
+            )
+        except Exception as exc:
+            LOGGER.warning("Failed dynamic event insert: node=%s control=%s err=%s", node_id, control, exc)
 
         # Placeholder ML remains optional/log-only for now.
         #is_anomaly, score = ml_engine.analyze_datapoint(node_id, value)
