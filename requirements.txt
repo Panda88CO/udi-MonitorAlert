@@ -1,2 +1,3 @@
 udi_interface>=3.4.5
 websocket-client>=1.5.0
+requests>=2.25.0

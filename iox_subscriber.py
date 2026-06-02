@@ -1,10 +1,17 @@
 import threading
 import base64
 import ssl
+import importlib
 import websocket
 import xml.etree.ElementTree as ET
+import logging
 from datetime import datetime, timezone
-from udi_interface import LOGGER
+
+try:
+    _udi_module = importlib.import_module("udi_interface")
+    LOGGER = getattr(_udi_module, "LOGGER", logging.getLogger(__name__))
+except Exception:  # pragma: no cover - local debug fallback
+    LOGGER = logging.getLogger(__name__)
 
 class IoXEventSubscriber:
     def __init__(self, host, port, username, password, event_callback, secure=False):

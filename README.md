@@ -28,10 +28,20 @@ This project is intended to run on Universal Devices eISY with PG3x and IoX.
 2. Ensure dependencies are installed via:
 
 ```sh
-pip3 install -r requirements.txt
+python3 -m pip install -r requirements.txt
 ```
 
 3. Start/restart the node server from PG3x.
+
+## Local Debugging On Windows
+
+For local scripts and non-PG3x debugging, install only the packages that do not depend on `udi_interface`:
+
+```sh
+python -m pip install -r requirements-local.txt
+```
+
+`udi_interface` remains a runtime dependency for the actual node server entrypoint in PG3x/eISY.
 
 ## PG3x customData Example
 

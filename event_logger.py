@@ -1,8 +1,14 @@
 import json
 import os
+import importlib
+import logging
 from datetime import datetime, timezone
 
-from udi_interface import LOGGER
+try:
+    _udi_module = importlib.import_module("udi_interface")
+    LOGGER = getattr(_udi_module, "LOGGER", logging.getLogger(__name__))
+except Exception:  # pragma: no cover - local debug fallback
+    LOGGER = logging.getLogger(__name__)
 
 EVENT_LOG_FILE = "event_stream.jsonl"
 

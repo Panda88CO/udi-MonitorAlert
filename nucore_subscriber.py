@@ -1,11 +1,16 @@
 import importlib
 import threading
+import logging
 from typing import Any, Dict
 from datetime import datetime, timezone
 
 from types import ModuleType
 
-from udi_interface import LOGGER
+try:
+    _udi_module = importlib.import_module("udi_interface")
+    LOGGER = getattr(_udi_module, "LOGGER", logging.getLogger(__name__))
+except Exception:  # pragma: no cover - local debug fallback
+    LOGGER = logging.getLogger(__name__)
 
 
 class NuCoreSubscriberError(Exception):
