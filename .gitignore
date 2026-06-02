@@ -11,3 +11,4 @@ event_stream.jsonl
 *.db
 *.db
 *.db
+/.venv310v1
