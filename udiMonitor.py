@@ -88,10 +88,9 @@ def cleanup_startup_files(event_log_file="event_stream.jsonl"):
         event_log_path = event_log_file
     _truncate_file(event_log_path)
 
-def log_event_to_file(source, node_id, control, value, name, action, event_time):
+def log_event_to_file() node_id, control, value, name, action, event_time):
     """Append a single event-callback record as a JSON line to EVENT_LOG_PATH."""
     record = {
-        "source": source,
         "node_id": node_id,
         "control": control,
         "value": value,
@@ -451,7 +450,7 @@ class Controller(Node):
             event_time = current_time_ms()
 
         LOGGER.debug("Event callback received: source=%s node_id=%s control=%s value=%s name=%s action=%s time=%s", event.get("source"), node_id, control,  value , name, action, event_time)
-        log_event_to_file(event.get("source"), node_id, control, value, name, action, event_time)
+        log_event_to_file(node_id, control, value, name, action, event_time)
 
         if node_id is not None and control is not None:
             try:
