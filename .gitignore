@@ -8,3 +8,4 @@ event_stream.jsonl
 *.jsonl
 *.log
 *.gz
+*.db

@@ -47,10 +47,18 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.0.2")
 
 
 def current_time_ms() -> int:
     return int(datetime.now(timezone.utc).timestamp() * 1000)
+
+
+def _coerce_int(value):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
 
 
 def _truncate_file(path):
@@ -433,6 +441,7 @@ class Controller(Node):
         node_id = event.get("node_id")
         value = event.get("value")
         control = event.get("control")
+        raw_action = event.get("action")
         name = event.get("fmtName")
         action = event.get("fmtAct")
         uom = event.get("uom")
@@ -446,12 +455,21 @@ class Controller(Node):
 
         if node_id is not None and control is not None:
             try:
+                enum_value = None
+                if _coerce_int(uom) == 25:
+                    # Prefer raw action enum when present; otherwise use normalized value.
+                    enum_value = _coerce_int(raw_action)
+                    if enum_value is None:
+                        enum_value = _coerce_int(value)
+
                 database.upsert_static_metadata(
                     node_id=str(node_id),
                     control=str(control),
                     name=None if name is None else str(name),
                     action=None if action is None else str(action),
                     uom=uom,
+                    enum_value=enum_value,
+                    enum_text=None if action is None else str(action),
                     event_time_ms=event_time,
                 )
             except Exception as exc:
@@ -463,7 +481,6 @@ class Controller(Node):
 
         try:
             database.insert_dynamic_event(
-                source=event.get("source"),
                 node_id=str(node_id),
                 control=str(control),
                 value=value,
@@ -491,7 +508,7 @@ if __name__ == "__main__":
         polyglot = Interface([])
 
         # Use dict-style startup options for PG3/PG3x compatibility.
-        polyglot.start({"version": "1.0.0", "requestId": True})
+        polyglot.start({"version": VERSION, "requestId": True})
         polyglot.setCustomParamsDoc()
 
         # Build master controller

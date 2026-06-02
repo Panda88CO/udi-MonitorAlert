@@ -3,6 +3,7 @@ import fnmatch
 import importlib
 import sqlite3
 import logging
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -26,10 +27,70 @@ def _coerce_float(value: Any) -> float | None:
         return None
 
 
+def _coerce_int(value: Any) -> int | None:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def _get_table_columns(cursor: sqlite3.Cursor, table_name: str) -> list[str]:
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    return [row[1] for row in cursor.fetchall()]
+
+
+def _ensure_node_control_static_schema(cursor: sqlite3.Cursor):
+    columns = set(_get_table_columns(cursor, "node_control_static"))
+    if "enum_map_json" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN enum_map_json TEXT")
+
+
+def _ensure_events_dynamic_numeric_schema(cursor: sqlite3.Cursor):
+    columns = _get_table_columns(cursor, "events_dynamic")
+    expected = {"id", "event_time_ms", "node_id", "control", "value"}
+
+    if set(columns) == expected:
+        return
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS events_dynamic_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_time_ms INTEGER NOT NULL,
+            node_id TEXT NOT NULL,
+            control TEXT NOT NULL,
+            value REAL NOT NULL
+        )
+        """
+    )
+
+    # Copy from whichever legacy value columns exist.
+    if "value" in columns:
+        value_expr = "value"
+    elif "value_num" in columns:
+        value_expr = "value_num"
+    elif "value_text" in columns:
+        value_expr = "CAST(value_text AS REAL)"
+    else:
+        value_expr = "NULL"
+
+    cursor.execute(
+        f"""
+        INSERT INTO events_dynamic_new (id, event_time_ms, node_id, control, value)
+        SELECT id, event_time_ms, node_id, control, {value_expr}
+        FROM events_dynamic
+        WHERE {value_expr} IS NOT NULL
+        """
+    )
+
+    cursor.execute("DROP TABLE events_dynamic")
+    cursor.execute("ALTER TABLE events_dynamic_new RENAME TO events_dynamic")
 
 
 def init_db():
@@ -44,6 +105,7 @@ def init_db():
             name TEXT,
             action TEXT,
             uom INTEGER,
+            enum_map_json TEXT,
             first_seen_ms INTEGER NOT NULL,
             last_seen_ms INTEGER NOT NULL,
             PRIMARY KEY (node_id, control)
@@ -51,20 +113,29 @@ def init_db():
         """
     )
 
+    _ensure_node_control_static_schema(cursor)
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS events_dynamic (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_time_ms INTEGER NOT NULL,
-            ingest_time_ms INTEGER NOT NULL,
-            source TEXT,
             node_id TEXT NOT NULL,
             control TEXT NOT NULL,
-            value_text TEXT,
-            value_num REAL
+            value REAL NOT NULL
         )
         """
     )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_node_control_time ON events_dynamic (node_id, control, event_time_ms)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_time ON events_dynamic (event_time_ms)"
+    )
+
+    _ensure_events_dynamic_numeric_schema(cursor)
+
+    # Recreate indexes after potential table rebuild.
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_events_node_control_time ON events_dynamic (node_id, control, event_time_ms)"
     )
@@ -124,6 +195,8 @@ def upsert_static_metadata(
     name: str | None = None,
     action: str | None = None,
     uom: int | None = None,
+    enum_value: int | None = None,
+    enum_text: str | None = None,
     event_time_ms: int | None = None,
 ):
     if not node_id or not control:
@@ -141,28 +214,65 @@ def upsert_static_metadata(
             name,
             action,
             uom,
+            enum_map_json,
             first_seen_ms,
             last_seen_ms
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id, control)
         DO UPDATE SET
             name = COALESCE(excluded.name, node_control_static.name),
             action = COALESCE(excluded.action, node_control_static.action),
             uom = COALESCE(excluded.uom, node_control_static.uom),
+            enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
             last_seen_ms = CASE
                 WHEN excluded.last_seen_ms > node_control_static.last_seen_ms THEN excluded.last_seen_ms
                 ELSE node_control_static.last_seen_ms
             END
         """,
-        (node_id, control, name, action, uom, seen_ms, seen_ms),
+        (node_id, control, name, action, uom, None, seen_ms, seen_ms),
     )
+
+    # For enum UOM (25), store a static numeric-to-label translation map.
+    if _coerce_int(uom) == 25 and enum_value is not None and enum_text:
+        cursor.execute(
+            """
+            SELECT enum_map_json
+            FROM node_control_static
+            WHERE node_id = ? AND control = ?
+            """,
+            (node_id, control),
+        )
+        row = cursor.fetchone()
+
+        enum_map: dict[str, str] = {}
+        if row and row["enum_map_json"]:
+            try:
+                enum_map = json.loads(row["enum_map_json"])
+            except (TypeError, ValueError):
+                enum_map = {}
+
+        key = str(enum_value)
+        if enum_map.get(key) != str(enum_text):
+            enum_map[key] = str(enum_text)
+            cursor.execute(
+                """
+                UPDATE node_control_static
+                SET enum_map_json = ?,
+                    last_seen_ms = CASE
+                        WHEN ? > last_seen_ms THEN ?
+                        ELSE last_seen_ms
+                    END
+                WHERE node_id = ? AND control = ?
+                """,
+                (json.dumps(enum_map, separators=(",", ":")), seen_ms, seen_ms, node_id, control),
+            )
+
     conn.commit()
     conn.close()
 
 
 def insert_dynamic_event(
-    source: str | None,
     node_id: str,
     control: str,
     value: Any,
@@ -171,10 +281,11 @@ def insert_dynamic_event(
     if not node_id or not control:
         return
 
-    ingest_time_ms = _now_ms()
-    event_ms = event_time_ms if event_time_ms is not None else ingest_time_ms
-    value_text = None if value is None else str(value)
+    event_ms = event_time_ms if event_time_ms is not None else _now_ms()
     value_num = _coerce_float(value)
+    if value_num is None:
+        LOGGER.warning("Skipping non-numeric dynamic value: node=%s control=%s value=%s", node_id, control, value)
+        return
 
     conn = _connect()
     cursor = conn.cursor()
@@ -182,16 +293,13 @@ def insert_dynamic_event(
         """
         INSERT INTO events_dynamic (
             event_time_ms,
-            ingest_time_ms,
-            source,
             node_id,
             control,
-            value_text,
-            value_num
+            value
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?)
         """,
-        (event_ms, ingest_time_ms, source, node_id, control, value_text, value_num),
+        (event_ms, node_id, control, value_num),
     )
     conn.commit()
     conn.close()
