@@ -10,3 +10,4 @@ event_stream.jsonl
 *.gz
 *.db
 *.db
+*.db
