@@ -1,0 +1,13 @@
+<profiles>
+<profile family="10" id="8">
+<files dir="nodedef">
+<file name="nodedefs.xml"/>
+</files>
+<files dir="nls">
+<file name="en_us.txt"/>
+</files>
+<files dir="editor">
+<file name="editors.xml"/>
+</files>
+</profile>
+</profiles>

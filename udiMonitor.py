@@ -8,6 +8,7 @@ import database
 import ml_engine
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
 from event_logger import append_event_line
+from parse_rest import build_control_metadata_records
 
 try:
     from iox_subscriber import IoXEventSubscriber
@@ -188,6 +189,10 @@ class Controller(Node):
         self.subscriber = None
         self.event_log_file = "event_stream.jsonl"
         self.fallback_started = False
+        self.control_meta_index = {}
+        self.policy_stats = {"audited": 0, "skipped": 0}
+        # Modes: off, audit, enforce. Audit is default to avoid accidental data loss.
+        self.timestamp_policy_mode = str(os.getenv("UDI_TIMESTAMP_POLICY_MODE", "audit")).strip().lower()
         self.custom_params = Custom(self.poly, "customparams")
         # Explicitly bind lifecycle handlers so startup always runs under PG3x.
         self.poly.subscribe(self.poly.START, self.start, self.address)
@@ -226,7 +231,12 @@ class Controller(Node):
         return True
 
     def stop(self):
-        LOGGER.info("Controller stop received.")
+        LOGGER.info(
+            "Controller stop received. timestamp_policy_mode=%s audited=%s skipped=%s",
+            self.timestamp_policy_mode,
+            self.policy_stats.get("audited", 0),
+            self.policy_stats.get("skipped", 0),
+        )
 
     def start(self):
         custom_data = self.poly.config.get("customData", {})
@@ -237,6 +247,9 @@ class Controller(Node):
 
         LOGGER.info("Initializing SQLite database...")
         database.init_db()
+        self._refresh_metadata_from_rest_status()
+        self.control_meta_index = database.load_control_metadata_index()
+        LOGGER.info("Loaded control metadata rows: %s", len(self.control_meta_index))
 
         source = self._get_event_source()
         LOGGER.info(f"Event source selected: {source}")
@@ -246,11 +259,178 @@ class Controller(Node):
         else:
             self._start_iox_subscriber()
 
+    def _get_control_meta(self, node_id, control):
+        if node_id is None or control is None:
+            return None
+        return self.control_meta_index.get((str(node_id), str(control)))
+
+    def _should_skip_dynamic_event(self, event, control_meta):
+        if not isinstance(control_meta, dict):
+            return False
+
+        if str(control_meta.get("storage_policy") or "store_value") != "skip_value_only_change":
+            return False
+
+        mode = self.timestamp_policy_mode
+        if mode == "off":
+            return False
+
+        node_id = event.get("node_id")
+        control = event.get("control")
+        value = event.get("value")
+        reason = control_meta.get("policy_reason") or "timestamp_like"
+
+        if mode == "audit":
+            self.policy_stats["audited"] = self.policy_stats.get("audited", 0) + 1
+            LOGGER.debug(
+                "Timestamp-like event observed (audit): node=%s control=%s value=%s reason=%s",
+                node_id,
+                control,
+                value,
+                reason,
+            )
+            return False
+
+        self.policy_stats["skipped"] = self.policy_stats.get("skipped", 0) + 1
+        LOGGER.debug(
+            "Timestamp-like event skipped: node=%s control=%s value=%s reason=%s",
+            node_id,
+            control,
+            value,
+            reason,
+        )
+        return True
+
     def _get_event_source(self):
         custom_data = self.poly.config.get("customData", {})
         if isinstance(custom_data, dict):
             return str(custom_data.get("eventSource", "iox")).lower()
         return "iox"
+
+    def _resolve_iox_connection(self):
+        custom_data = self.poly.config.get("customData", {})
+        custom_params = self._get_custom_params()
+        iox_cfg = custom_data.get("iox", {}) if isinstance(custom_data, dict) else {}
+        custom_iox_user = custom_data.get("ioxUser") if isinstance(custom_data, dict) else None
+        custom_iox_pass = custom_data.get("ioxPassword") if isinstance(custom_data, dict) else None
+
+        custom_eisy_ip = custom_params.get("eISY_IP") or custom_params.get("EISY_IP")
+        custom_username = custom_params.get("username") or custom_params.get("USERNAME")
+        custom_password = custom_params.get("password") or custom_params.get("PASSWORD")
+
+        custom_iox_host = None
+        custom_iox_port = None
+        custom_iox_secure = None
+        if custom_eisy_ip:
+            raw_eisy = str(custom_eisy_ip).strip()
+            parsed = urlparse(raw_eisy if "://" in raw_eisy else f"https://{raw_eisy}")
+            if parsed.hostname:
+                custom_iox_host = parsed.hostname
+                if parsed.port:
+                    custom_iox_port = str(parsed.port)
+                if parsed.scheme:
+                    custom_iox_secure = parsed.scheme.lower() == "https"
+            else:
+                custom_iox_host = raw_eisy
+
+        iox_host = (
+            custom_iox_host
+            or self.poly.config.get('isyIp')
+            or iox_cfg.get("host")
+            or iox_cfg.get("ip")
+            or DEFAULT_IOX_CONFIG["host"]
+        )
+        iox_secure = custom_iox_secure if custom_iox_secure is not None else iox_cfg.get("secure", DEFAULT_IOX_CONFIG["secure"])
+        if isinstance(iox_secure, str):
+            iox_secure = iox_secure.strip().lower() in ("1", "true", "yes", "on")
+        default_port = "443" if iox_secure else "80"
+        iox_port = (
+            custom_iox_port
+            or self.poly.config.get('isyPort')
+            or iox_cfg.get("port")
+            or default_port
+        )
+
+        iox_user = (
+            custom_username
+            or self.poly.config.get('isyUser')
+            or iox_cfg.get("username")
+            or iox_cfg.get("user")
+            or custom_iox_user
+            or DEFAULT_IOX_CONFIG["username"]
+        )
+        iox_pass = (
+            custom_password
+            or self.poly.config.get('isyPassword')
+            or iox_cfg.get("password")
+            or custom_iox_pass
+            or DEFAULT_IOX_CONFIG["password"]
+        )
+
+        return {
+            "host": iox_host,
+            "port": iox_port,
+            "secure": bool(iox_secure),
+            "username": iox_user,
+            "password": iox_pass,
+        }
+
+    def _refresh_metadata_from_rest_status(self):
+        cfg = self._resolve_iox_connection()
+        if not cfg.get("host") or not cfg.get("username") or not cfg.get("password"):
+            LOGGER.info("Skipping REST metadata refresh: missing IoX connection settings.")
+            return
+
+        scheme = "https" if cfg["secure"] else "http"
+        rest_base_url = f"{scheme}://{cfg['host']}:{cfg['port']}/rest"
+        LOGGER.info("REST metadata refresh target: %s", rest_base_url)
+
+        try:
+            records, stats = build_control_metadata_records(
+                rest_base_url=rest_base_url,
+                username=str(cfg["username"]),
+                password=str(cfg["password"]),
+            )
+        except Exception as exc:
+            LOGGER.warning("REST metadata refresh failed at fetch/parse stage: %s", exc)
+            return
+
+        if not records:
+            LOGGER.info("REST metadata refresh returned no records: %s", stats)
+            return
+
+        upserted = 0
+        try:
+            upserted = database.bulk_upsert_static_metadata(records)
+        except Exception as exc:
+            LOGGER.warning("Bulk REST metadata upsert failed; falling back to row-by-row mode: %s", exc)
+            for rec in records:
+                try:
+                    database.upsert_static_metadata(
+                        node_id=rec["node_id"],
+                        control=rec["control"],
+                        uom=rec.get("uom"),
+                        uom_label=rec.get("uom_label"),
+                        source=rec.get("source"),
+                        enum_value=rec.get("enum_value"),
+                        enum_text=rec.get("enum_text"),
+                    )
+                    upserted += 1
+                except Exception as row_exc:
+                    LOGGER.debug(
+                        "REST metadata upsert failed for node=%s control=%s err=%s",
+                        rec.get("node_id"),
+                        rec.get("control"),
+                        row_exc,
+                    )
+
+        LOGGER.info(
+            "REST metadata refresh complete: upserted=%s status_nodes=%s status_properties=%s slots_loaded=%s",
+            upserted,
+            stats.get("status_nodes", 0),
+            stats.get("status_properties", 0),
+            stats.get("slots_loaded", 0),
+        )
 
     def _start_nucore_subscriber(self):
         custom_data = self.poly.config.get("customData", {})
@@ -317,66 +497,12 @@ class Controller(Node):
             return
 
         LOGGER.info("Starting IoX fallback subscriber...")
-        custom_data = self.poly.config.get("customData", {})
-        custom_params = self._get_custom_params()
-        iox_cfg = custom_data.get("iox", {}) if isinstance(custom_data, dict) else {}
-        custom_iox_user = custom_data.get("ioxUser") if isinstance(custom_data, dict) else None
-        custom_iox_pass = custom_data.get("ioxPassword") if isinstance(custom_data, dict) else None
-
-        custom_eisy_ip = custom_params.get("eISY_IP") or custom_params.get("EISY_IP")
-        custom_username = custom_params.get("username") or custom_params.get("USERNAME")
-        custom_password = custom_params.get("password") or custom_params.get("PASSWORD")
-
-        custom_iox_host = None
-        custom_iox_port = None
-        custom_iox_secure = None
-        if custom_eisy_ip:
-            raw_eisy = str(custom_eisy_ip).strip()
-            parsed = urlparse(raw_eisy if "://" in raw_eisy else f"https://{raw_eisy}")
-            if parsed.hostname:
-                custom_iox_host = parsed.hostname
-                if parsed.port:
-                    custom_iox_port = str(parsed.port)
-                if parsed.scheme:
-                    custom_iox_secure = parsed.scheme.lower() == "https"
-            else:
-                custom_iox_host = raw_eisy
-
-        iox_ip = (
-            custom_iox_host
-            or
-            self.poly.config.get('isyIp')
-            or iox_cfg.get("host")
-            or iox_cfg.get("ip")
-            or DEFAULT_IOX_CONFIG["host"]
-        )
-        iox_port = (
-            custom_iox_port
-            or
-            self.poly.config.get('isyPort')
-            or iox_cfg.get("port")
-            or DEFAULT_IOX_CONFIG["port"]
-        )
-        iox_secure = custom_iox_secure if custom_iox_secure is not None else iox_cfg.get("secure", DEFAULT_IOX_CONFIG["secure"])
-        if isinstance(iox_secure, str):
-            iox_secure = iox_secure.strip().lower() in ("1", "true", "yes", "on")
-        iox_user = (
-            custom_username
-            or
-            self.poly.config.get('isyUser')
-            or iox_cfg.get("username")
-            or iox_cfg.get("user")
-            or custom_iox_user
-            or DEFAULT_IOX_CONFIG["username"]
-        )
-        iox_pass = (
-            custom_password
-            or
-            self.poly.config.get('isyPassword')
-            or iox_cfg.get("password")
-            or custom_iox_pass
-            or DEFAULT_IOX_CONFIG["password"]
-        )
+        iox_conn = self._resolve_iox_connection()
+        iox_ip = iox_conn["host"]
+        iox_port = iox_conn["port"]
+        iox_secure = iox_conn["secure"]
+        iox_user = iox_conn["username"]
+        iox_pass = iox_conn["password"]
 
         if not iox_user or not iox_pass:
             LOGGER.error("IoX credentials are missing; set isyUser/isyPassword or IOX_USERNAME/IOX_PASSWORD.")
@@ -461,21 +587,30 @@ class Controller(Node):
                     if enum_value is None:
                         enum_value = _coerce_int(value)
 
-                database.upsert_static_metadata(
+                updated_meta = database.upsert_static_metadata(
                     node_id=str(node_id),
                     control=str(control),
                     name=None if name is None else str(name),
                     action=None if action is None else str(action),
                     uom=uom,
+                    source=None if event.get("source") is None else str(event.get("source")),
                     enum_value=enum_value,
                     enum_text=None if action is None else str(action),
                     event_time_ms=event_time,
                 )
+                if isinstance(updated_meta, dict):
+                    self.control_meta_index[(str(node_id), str(control))] = updated_meta
             except Exception as exc:
                 LOGGER.warning("Failed static metadata upsert: node=%s control=%s err=%s", node_id, control, exc)
 
         if not self._is_valid_dynamic_event(node_id, control, value):
             LOGGER.debug("Ignoring event without node_id/value keys: keys=%s", sorted(event.keys()))
+            return
+
+        event["node_id"] = str(node_id)
+        event["control"] = str(control)
+        control_meta = self._get_control_meta(node_id, control)
+        if self._should_skip_dynamic_event(event, control_meta):
             return
 
         try:

@@ -1,0 +1,2412 @@
+<nodeDefs>
+<nodeDef id="setup" nls="nlssetup">
+<editors/>
+<sts>
+<st id="ST" editor="connect"/>
+<st id="GV1" editor="ready"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+</cmds>
+</nodeDef>
+<nodeDef id="yoScheduleSec" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoMScheduleSec" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="nbrcodes"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="ch" editor="schIndexS" init="GV12"/>
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoirScheduleSec" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="nbrcodes"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="key" editor="nbrcodes" init="GV12"/>
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoMoutletSchSec" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="outport"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="key" editor="outport" init="GV12"/>
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoirSchedule" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="nbrcodes"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoMSchedule" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="outport"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoSchedule" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoSprinklerScheduleSec" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoSprinklerSchedule" nls="nlsschedule">
+<editors/>
+<sts>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoWMVlScheduleSec" nls="nlswmvalveschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="count"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoWMVlSchedule" nls="nlswmvalveschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="count"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoWMLkScheduleSec" nls="nlswmleakschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="count"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="L_LIMIT" editor="leaklimit" init="GV12"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoWMLkSchedule" nls="nlswmleakschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="count"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="L_LIMIT" editor="leaklimit" init="GV12"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoWMScheduleSec" nls="nlswmschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="count"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="LLIMIT" editor="leaklimit" init="GV12"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="onS" editor="stSecI" init="GV21"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="offS" editor="stSecI" init="GV22"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoWMSchedule" nls="nlswmschedule">
+<editors/>
+<sts>
+<st id="GV12" editor="count"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV23" editor="schCount"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV19" editor="binDays"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="LOOKUPSCH">
+<p id="" editor="schIndexS" init="GV13"/>
+</cmd>
+<cmd id="DEFINESCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+<p id="LLIMIT" editor="leaklimit" init="GV12"/>
+<p id="onH" editor="stHourI" init="GV15"/>
+<p id="onM" editor="stMinI" init="GV16"/>
+<p id="offH" editor="stHourI" init="GV17"/>
+<p id="offM" editor="stMinI" init="GV18"/>
+<p id="bindays" editor="binDays" init="GV19"/>
+</cmd>
+<cmd id="CTRLSCH">
+<p id="index" editor="schIndexS" init="GV13"/>
+<p id="active" editor="schActiveI" init="GV14"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoswitchPwr" nls="nlsswitch">
+<editors/>
+<sts>
+<st id="ST" editor="swstate"/>
+<st id="GV0" editor="swstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="GV3" editor="watt"/>
+<st id="GV4" editor="energy"/>
+<st id="GV5" editor="poweralert"/>
+<st id="GV6" editor="poweralert"/>
+<st id="GV7" editor="poweralert"/>
+<st id="GV8" editor="poweralert"/>
+<st id="GV9" editor="LED"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+<cmd id="SWCTRL">
+<p id="" editor="swctrl" init="GV0"/>
+</cmd>
+<cmd id="SETATTRIB">
+<p id="" editor="LEDctrl" init="GV9"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoswitch" nls="nlsswitch">
+<editors/>
+<sts>
+<st id="ST" editor="swstate"/>
+<st id="GV0" editor="swstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="GV5" editor="poweralert"/>
+<st id="GV6" editor="poweralert"/>
+<st id="GV7" editor="poweralert"/>
+<st id="GV8" editor="poweralert"/>
+<st id="GV9" editor="LED"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+<cmd id="SWCTRL">
+<p id="" editor="swctrl" init="GV0"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+<cmd id="SETATTRIB">
+<p id="" editor="LEDctrl" init="GV9"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoswitchBat" nls="nlsswitch">
+<editors/>
+<sts>
+<st id="ST" editor="swstate"/>
+<st id="GV0" editor="swstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV9" editor="LED"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+<cmd id="SWCTRL">
+<p id="" editor="swctrl" init="GV0"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+<cmd id="SETATTRIB">
+<p id="" editor="LEDctrl" init="GV9"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yodimmer" nls="nlsdimmer">
+<editors/>
+<sts>
+<st id="ST" editor="dimlvl"/>
+<st id="GV0" editor="swstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="GV3" editor="dimlvl"/>
+<st id="GV4" editor="dimlvl"/>
+<st id="GV5" editor="dimlvl"/>
+<st id="GV9" editor="LED"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+<cmd id="FDUP"/>
+<cmd id="FDDOWN"/>
+<cmd id="FDSTOP"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+<cmd id="FDUP"/>
+<cmd id="FDDOWN"/>
+<cmd id="FDSTOP"/>
+<cmd id="DIMLVL">
+<p id="" editor="dimlvl" init="GV3"/>
+</cmd>
+<cmd id="DIMDOWN">
+<p id="" editor="dimlvl" init="GV4"/>
+</cmd>
+<cmd id="DIMUP">
+<p id="" editor="dimlvl" init="GV5"/>
+</cmd>
+<cmd id="SWCTRL">
+<p id="" editor="swctrl" init="GV0"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+<cmd id="SETATTRIB">
+<p id="" editor="LEDctrl" init="GV9"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yooutlet" nls="nlsoutlet">
+<editors/>
+<sts>
+<st id="ST" editor="swstate"/>
+<st id="GV0" editor="swstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="GV5" editor="poweralert"/>
+<st id="GV6" editor="poweralert"/>
+<st id="GV7" editor="poweralert"/>
+<st id="GV8" editor="poweralert"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON" editor="swstate"/>
+<cmd id="DOF" editor="swstate"/>
+<cmd id="SWCTRL">
+<p id="" editor="swctrl" init="GV0"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yooutletPwr" nls="nlsoutlet">
+<editors/>
+<sts>
+<st id="ST" editor="swstate"/>
+<st id="GV0" editor="swstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="GV3" editor="watt"/>
+<st id="GV4" editor="energy"/>
+<st id="GV5" editor="poweralert"/>
+<st id="GV6" editor="poweralert"/>
+<st id="GV7" editor="poweralert"/>
+<st id="GV8" editor="poweralert"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON" editor="swstate"/>
+<cmd id="DOF" editor="swstate"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="SWCTRL">
+<p id="" editor="swctrl" init="GV0"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yomultiout" nls="nlsmultiout">
+<editors/>
+<sts>
+<st id="ST" editor="status"/>
+<st id="GV12" editor="outport"/>
+<st id="GV13" editor="schIndex"/>
+<st id="GV14" editor="schActive"/>
+<st id="GV15" editor="stHour"/>
+<st id="GV16" editor="stMin"/>
+<st id="GV21" editor="stSec"/>
+<st id="GV17" editor="stHour"/>
+<st id="GV18" editor="stMin"/>
+<st id="GV22" editor="stSec"/>
+<st id="GV19" editor="binDays"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosubout" nls="nlssubout">
+<editors/>
+<sts>
+<st id="ST" editor="swstate"/>
+<st id="GV0" editor="swstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="GV4" editor="outletnbr"/>
+<st id="GV30" editor="status"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON" editor="swstate"/>
+<cmd id="DOF" editor="swstate"/>
+<cmd id="SWCTRL">
+<p id="" editor="swctrl" init="GV0"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosubusb" nls="nlssubusb">
+<editors/>
+<sts>
+<st id="ST" editor="usbstate"/>
+<st id="GV0" editor="usbstate"/>
+<st id="GV30" editor="status"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="DON" editor="usbstate"/>
+<cmd id="DOF" editor="usbstate"/>
+<cmd id="USBCTRL">
+<p id="" editor="usbctrl" init="GV0"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yomanipu" nls="nlsmanipu">
+<editors/>
+<sts>
+<st id="ST" editor="manstate"/>
+<st id="GV0" editor="manstate"/>
+<st id="GV1" editor="delay"/>
+<st id="GV2" editor="delay"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="MOPEN"/>
+<cmd id="MCLOSE"/>
+<cmd id="MANCTRL">
+<p id="" editor="manctrl" init="GV0"/>
+</cmd>
+<cmd id="DELAYCTRL">
+<p id="ondelay" editor="delaymin" init="GV1"/>
+<p id="offdelay" editor="delaymin" init="GV2"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosprinkler" nls="nlssprinkler">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV0" editor="manstate"/>
+<st id="GV1" editor="liter"/>
+<st id="GV10" editor="liter"/>
+<st id="GV2" editor="liter"/>
+<st id="GV3" editor="minutes"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV11" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+<st id="GV13" editor="alarm"/>
+<st id="GV14" editor="alarm"/>
+<st id="GV22" editor="liter"/>
+<st id="GV23" editor="count"/>
+<st id="GV24" editor="minutes"/>
+<st id="GV25" editor="enable"/>
+<st id="GV26" editor="enable"/>
+<st id="GV27" editor="enable"/>
+<st id="GV28" editor="enable"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="STARTSTOP">
+<p id="startstop" editor="startstop"/>
+<p id="watermode" editor="watermode"/>
+</cmd>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="leaklimit"/>
+<p id="LOFF" editor="enableSet"/>
+<p id="ORLIMIT" editor="leaklimit"/>
+<p id="OROFF" editor="enableSet"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+<p id="ORTOFF" editor="enableSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterCtrl" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV0" editor="manstate"/>
+<st id="GV1" editor="liter"/>
+<st id="GV10" editor="liter"/>
+<st id="GV2" editor="liter"/>
+<st id="GV3" editor="minutes"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV11" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+<st id="GV13" editor="alarm"/>
+<st id="GV14" editor="alarm"/>
+<st id="GV22" editor="liter"/>
+<st id="GV23" editor="count"/>
+<st id="GV24" editor="minutes"/>
+<st id="GV25" editor="enable"/>
+<st id="GV26" editor="enable"/>
+<st id="GV27" editor="enable"/>
+<st id="GV28" editor="enable"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="VOPEN"/>
+<cmd id="VCLOSE"/>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="leaklimit"/>
+<p id="LOFF" editor="enableSet"/>
+<p id="ORLIMIT" editor="leaklimit"/>
+<p id="OROFF" editor="enableSet"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+<p id="ORTOFF" editor="enableSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterCtrlF" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV0" editor="manstate"/>
+<st id="GV1" editor="gallon"/>
+<st id="GV10" editor="gallon"/>
+<st id="GV2" editor="gallon"/>
+<st id="GV3" editor="minutes"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV11" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+<st id="GV13" editor="alarm"/>
+<st id="GV14" editor="alarm"/>
+<st id="GV22" editor="gallon"/>
+<st id="GV23" editor="count"/>
+<st id="GV24" editor="minutes"/>
+<st id="GV25" editor="enable"/>
+<st id="GV26" editor="enable"/>
+<st id="GV27" editor="enable"/>
+<st id="GV28" editor="enable"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="VOPEN"/>
+<cmd id="VCLOSE"/>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="leaklimit"/>
+<p id="LOFF" editor="enableSet"/>
+<p id="ORLIMIT" editor="leaklimit"/>
+<p id="OROFF" editor="enableSet"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+<p id="ORTOFF" editor="enableSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterMulti" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV1" editor="count"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterMultiF" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV1" editor="count"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterSub" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV0" editor="manstate"/>
+<st id="GV1" editor="flow"/>
+<st id="GV10" editor="flow"/>
+<st id="GV2" editor="flow"/>
+<st id="GV3" editor="minutes"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="VOPEN"/>
+<cmd id="VCLOSE"/>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="leaklimit"/>
+<p id="LOFF" editor="enableSet"/>
+<p id="ORLIMIT" editor="leaklimit"/>
+<p id="OROFF" editor="enableSet"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+<p id="ORTOFF" editor="enableSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterSubL" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV0" editor="manstate"/>
+<st id="GV1" editor="liter"/>
+<st id="GV10" editor="liter"/>
+<st id="GV2" editor="liter"/>
+<st id="GV3" editor="minutes"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+<st id="GV22" editor="liter"/>
+<st id="GV23" editor="count"/>
+<st id="GV24" editor="minutes"/>
+<st id="GV25" editor="enable"/>
+<st id="GV26" editor="enable"/>
+<st id="GV27" editor="enable"/>
+<st id="GV28" editor="enable"/>
+<st id="GV20" editor="suspendstate"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="VOPEN"/>
+<cmd id="VCLOSE"/>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="literSet"/>
+<p id="LOFF" editor="enableSet"/>
+<p id="ORLIMIT" editor="literSet"/>
+<p id="OROFF" editor="enableSet"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+<p id="ORTOFF" editor="enableSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterSubG" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV0" editor="manstate"/>
+<st id="GV1" editor="gallon"/>
+<st id="GV10" editor="gallon"/>
+<st id="GV2" editor="gallon"/>
+<st id="GV3" editor="minutes"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+<st id="GV22" editor="gallon"/>
+<st id="GV23" editor="minutes"/>
+<st id="GV24" editor="count"/>
+<st id="GV25" editor="enable"/>
+<st id="GV26" editor="enable"/>
+<st id="GV27" editor="enable"/>
+<st id="GV28" editor="enable"/>
+<st id="GV20" editor="suspendstate"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="VOPEN"/>
+<cmd id="VCLOSE"/>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="gallonSet"/>
+<p id="LOFF" editor="enableSet"/>
+<p id="ORLIMIT" editor="gallonSet"/>
+<p id="OROFF" editor="enableSet"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+<p id="ORTOFF" editor="enableSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterOnly" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV1" editor="flow"/>
+<st id="GV10" editor="flow"/>
+<st id="GV2" editor="flow"/>
+<st id="GV3" editor="minutes"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV11" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+<st id="GV13" editor="alarm"/>
+<st id="GV14" editor="alarm"/>
+<st id="GV16" editor="minutes"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="leaklimit"/>
+<p id="ORLIMIT" editor="leaklimit"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowatermeterOnlyF" nls="nlswatermeter">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV1" editor="flow"/>
+<st id="GV10" editor="flow"/>
+<st id="GV2" editor="flow"/>
+<st id="GV3" editor="minutes"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV9" editor="alarm"/>
+<st id="GV11" editor="alarm"/>
+<st id="GV12" editor="alarm"/>
+<st id="GV13" editor="alarm"/>
+<st id="GV14" editor="alarm"/>
+<st id="GV16" editor="minutes"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="SETATTRIB">
+<p id="LLIMIT" editor="leaklimit"/>
+<p id="ORLIMIT" editor="leaklimit"/>
+<p id="ORTLIMIT" editor="minutesSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosprinklerv2" nls="nlssprinkler">
+<editors/>
+<sts>
+<st id="ST" editor="waterrun"/>
+<st id="GV1" editor="nowateralarm"/>
+<st id="GV10" editor="unixtime"/>
+<st id="GV5" editor="waterrun"/>
+<st id="GV7" editor="runningmode"/>
+<st id="GV8" editor="runningvalue"/>
+<st id="GV9" editor="nowateralarm"/>
+<st id="GV12" editor="minutes"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="STARTSTOP">
+<p id="startstop" editor="startstop"/>
+<p id="watermode" editor="watermode"/>
+</cmd>
+<cmd id="WATTRIB">
+<p id="wmethod" editor="sprinklermethod"/>
+<p id="wamount" editor="wamount"/>
+</cmd>
+<cmd id="WDELAY">
+<p id="" editor="minutesSet"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yothsens" nls="nlsthsens">
+<editors/>
+<sts>
+<st id="ST" editor="celsius"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV1" editor="alarm"/>
+<st id="GV2" editor="alarm"/>
+<st id="CLIHUM" editor="humidity"/>
+<st id="GV4" editor="alarm"/>
+<st id="GV5" editor="alarm"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="cmdsetting"/>
+<st id="GV10" editor="celsius"/>
+<st id="GV11" editor="celsius"/>
+<st id="GV12" editor="humidity"/>
+<st id="GV13" editor="humidity"/>
+<st id="GV14" editor="celsius"/>
+<st id="GV15" editor="celsius"/>
+<st id="GV16" editor="humidity"/>
+<st id="GV17" editor="humidity"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosoilsensor" nls="nlssoilsensor">
+<editors/>
+<sts>
+<st id="ST" editor="conductivity"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="CLIHUM" editor="humidity"/>
+<st id="GV1" editor="alarm"/>
+<st id="GV2" editor="alarm"/>
+<st id="GV3" editor="alarm"/>
+<st id="GV4" editor="alarm"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV9" editor="cmdsetting"/>
+<st id="GV10" editor="celsius"/>
+<st id="GV11" editor="celsius"/>
+<st id="GV12" editor="humidity"/>
+<st id="GV13" editor="humidity"/>
+<st id="GV14" editor="conductivity"/>
+<st id="GV15" editor="conductivity"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosoilsensorF" nls="nlssoilsensor">
+<editors/>
+<sts>
+<st id="ST" editor="farenheit"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV1" editor="alarm"/>
+<st id="GV2" editor="alarm"/>
+<st id="GV3" editor="alarm"/>
+<st id="CLIHUM" editor="humidity"/>
+<st id="GV4" editor="alarm"/>
+<st id="GV5" editor="alarm"/>
+<st id="GV6" editor="alarm"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV9" editor="cmdsetting"/>
+<st id="GV10" editor="farenheit"/>
+<st id="GV11" editor="farenheit"/>
+<st id="GV12" editor="humidity"/>
+<st id="GV13" editor="humidity"/>
+<st id="GV14" editor="farenheit"/>
+<st id="GV15" editor="farenheit"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yothsensF" nls="nlsthsens">
+<editors/>
+<sts>
+<st id="ST" editor="farenheit"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV1" editor="alarm"/>
+<st id="GV2" editor="alarm"/>
+<st id="CLIHUM" editor="humidity"/>
+<st id="GV4" editor="alarm"/>
+<st id="GV5" editor="alarm"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="cmdsetting"/>
+<st id="GV10" editor="farenheit"/>
+<st id="GV11" editor="farenheit"/>
+<st id="GV12" editor="humidity"/>
+<st id="GV13" editor="humidity"/>
+<st id="GV14" editor="farenheit"/>
+<st id="GV15" editor="farenheit"/>
+<st id="GV16" editor="humidity"/>
+<st id="GV17" editor="humidity"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yotsens" nls="nlstsens">
+<editors/>
+<sts>
+<st id="ST" editor="celsius"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV1" editor="alarm"/>
+<st id="GV2" editor="alarm"/>
+<st id="CLIHUM" editor="humidity"/>
+<st id="GV4" editor="alarm"/>
+<st id="GV5" editor="alarm"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="cmdsetting"/>
+<st id="GV10" editor="celsius"/>
+<st id="GV11" editor="celsius"/>
+<st id="GV12" editor="humidity"/>
+<st id="GV13" editor="humidity"/>
+<st id="GV14" editor="celsius"/>
+<st id="GV15" editor="celsius"/>
+<st id="GV16" editor="humidity"/>
+<st id="GV17" editor="humidity"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yotsensF" nls="nlstsens">
+<editors/>
+<sts>
+<st id="ST" editor="farenheit"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV1" editor="alarm"/>
+<st id="GV2" editor="alarm"/>
+<st id="CLIHUM" editor="humidity"/>
+<st id="GV4" editor="alarm"/>
+<st id="GV5" editor="alarm"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV7" editor="alarm"/>
+<st id="GV8" editor="alarm"/>
+<st id="GV9" editor="cmdsetting"/>
+<st id="GV10" editor="farenheit"/>
+<st id="GV11" editor="farenheit"/>
+<st id="GV12" editor="humidity"/>
+<st id="GV13" editor="humidity"/>
+<st id="GV14" editor="farenheit"/>
+<st id="GV15" editor="farenheit"/>
+<st id="GV16" editor="humidity"/>
+<st id="GV17" editor="humidity"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yodoorsens" nls="nlsdoorsens">
+<editors/>
+<sts>
+<st id="ST" editor="doorstate"/>
+<st id="GV0" editor="doorstate"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="cmdsetting"/>
+<st id="GV3" editor="unixtime"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yogarage" nls="nlsgarage">
+<editors/>
+<sts>
+<st id="ST" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="TOGGLE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yomotionsens" nls="nlsmotionsens">
+<editors/>
+<sts>
+<st id="ST" editor="motionstate"/>
+<st id="GV0" editor="motionstate"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="cmdsetting"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yomotionsensF" nls="nlsmotionsens">
+<editors/>
+<sts>
+<st id="ST" editor="motionstate"/>
+<st id="GV0" editor="motionstate"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="cmdsetting"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoleaksensF" nls="nlsleaksens">
+<editors/>
+<sts>
+<st id="ST" editor="waterstate"/>
+<st id="GV0" editor="waterstate"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV2" editor="cmdsetting"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV3" editor="unixtime"/>
+<st id="GV4" editor="beeping"/>
+<st id="GV5" editor="leakOpMode"/>
+<st id="GV6" editor="sensitivity"/>
+<st id="GV7" editor="moveAlert"/>
+<st id="GV8" editor="freezeAlert"/>
+<st id="GV9" editor="sensorError"/>
+<st id="GV10" editor="reminder"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="SETBEEP">
+<p id="" editor="beeping" init="GV4"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoleaksens" nls="nlsleaksens">
+<editors/>
+<sts>
+<st id="ST" editor="waterstate"/>
+<st id="GV0" editor="waterstate"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV2" editor="cmdsetting"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV3" editor="unixtime"/>
+<st id="GV4" editor="beeping"/>
+<st id="GV5" editor="leakOpMode"/>
+<st id="GV6" editor="sensitivity"/>
+<st id="GV7" editor="moveAlert"/>
+<st id="GV8" editor="freezeAlert"/>
+<st id="GV9" editor="sensorError"/>
+<st id="GV10" editor="reminder"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="SETBEEP">
+<p id="" editor="beeping" init="GV4"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoCOSmokesens" nls="nlssmokesens">
+<editors/>
+<sts>
+<st id="ST" editor="deviceAlert"/>
+<st id="ALARM" editor="deviceAlert"/>
+<st id="GV0" editor="SmokeAlert"/>
+<st id="GV1" editor="COAlert"/>
+<st id="GV2" editor="TempAlert"/>
+<st id="GV3" editor="BatteryAlert"/>
+<st id="GV4" editor="batlevel"/>
+<st id="GV5" editor="SelfcheckState"/>
+<st id="GV7" editor="cmdsetting"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV7"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoCOSmokesensF" nls="nlssmokesens">
+<editors/>
+<sts>
+<st id="ST" editor="deviceAlert"/>
+<st id="ALARM" editor="deviceAlert"/>
+<st id="GV0" editor="SmokeAlert"/>
+<st id="GV1" editor="COAlert"/>
+<st id="GV2" editor="TempAlert"/>
+<st id="GV3" editor="BatteryAlert"/>
+<st id="GV4" editor="batlevel"/>
+<st id="GV5" editor="SelfcheckState"/>
+<st id="GV7" editor="cmdsetting"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV7"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yovibrasens" nls="nlsvibrasens">
+<editors/>
+<sts>
+<st id="ST" editor="vibrastate"/>
+<st id="GV0" editor="vibrastate"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="cmdsetting"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yovibrasensF" nls="nlsvibrasens">
+<editors/>
+<sts>
+<st id="ST" editor="vibrastate"/>
+<st id="GV0" editor="vibrastate"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="cmdsetting"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV30" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yohubbat" nls="nlshubbat">
+<editors/>
+<sts>
+<st id="ST" editor="poweralert"/>
+<st id="GV0" editor="powerstate"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yohub" nls="nlshub">
+<editors/>
+<sts>
+<st id="ST" editor="status"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yospeakerh" nls="nlsspeakerh">
+<editors/>
+<sts>
+<st id="ST" editor="status"/>
+<st id="GV0" editor="volume"/>
+<st id="GV1" editor="beepEn"/>
+<st id="GV2" editor="mute"/>
+<st id="GV3" editor="tone"/>
+<st id="GV4" editor="messages"/>
+<st id="GV5" editor="repeat"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="PLAY">
+<p id="message" editor="messages" init="GV4"/>
+<p id="volume" editor="volume" init="GV0"/>
+<p id="tone" editor="toneSet" init="GV3"/>
+<p id="repeat" editor="repeat" init="GV5"/>
+</cmd>
+<cmd id="BEEP">
+<p id="" editor="beepEnSet" init="GV1"/>
+</cmd>
+<cmd id="MUTE">
+<p id="" editor="muteSet" init="GV2"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yolockv2" nls="nlslock">
+<editors/>
+<sts>
+<st id="ST" editor="lockstate"/>
+<st id="GV0" editor="lockstate"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="doorbell"/>
+<st id="GV3" editor="doorstate"/>
+<st id="GV4" editor="lockaction"/>
+<st id="GV5" editor="locksource"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="LOCK"/>
+<cmd id="UNLOCK"/>
+<cmd id="LOCKCTRL">
+<p id="" editor="lock" init="GV0"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yolock" nls="nlslock">
+<editors/>
+<sts>
+<st id="ST" editor="lockstate"/>
+<st id="GV0" editor="lockstate"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV3" editor="doorstate"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="LOCK"/>
+<cmd id="UNLOCK"/>
+<cmd id="LOCKCTRL">
+<p id="" editor="lock" init="GV0"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoirremote" nls="nlsirremote">
+<editors/>
+<sts>
+<st id="ST" editor="ircmdstatus"/>
+<st id="GV0" editor="nbrcodes"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="ircmdstatus"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="LEARNCODE"/>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yoircode" nls="nlsircode">
+<editors/>
+<sts>
+<st id="ST" editor="ircmdstatus"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+</sends>
+<accepts>
+<cmd id="TXCODE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yopwralarm" nls="nlspwralarm">
+<editors/>
+<sts>
+<st id="ST" editor="poweralert"/>
+<st id="GV0" editor="poweralert"/>
+<st id="GV1" editor="batlevel"/>
+<st id="GV2" editor="alertstate"/>
+<st id="GV3" editor="powered"/>
+<st id="GV4" editor="pfamute"/>
+<st id="GV7" editor="cmdstatus"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETCMD">
+<p id="" editor="cmdsetting" init="GV7"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yowaterdept" nls="nlswaterdept">
+<editors/>
+<sts>
+<st id="ST" editor="waterlevel"/>
+<st id="GV0" editor="waterlevel"/>
+<st id="GV1" editor="waterlevel"/>
+<st id="GV2" editor="waterlevel"/>
+<st id="GV3" editor="alarm"/>
+<st id="GV4" editor="alarm"/>
+<st id="GV5" editor="alarm"/>
+<st id="BATLVL" editor="batlevel"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SETATTR">
+<p id="waterLowAlarm" editor="waterlevel" init="GV1"/>
+<p id="waterHighAlarm" editor="waterlevel" init="GV2"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosiren" nls="nlssiren">
+<editors/>
+<sts>
+<st id="ST" editor="sirenstate"/>
+<st id="GV0" editor="sirenstate"/>
+<st id="GV1" editor="sirenduration"/>
+<st id="GV2" editor="sirenbatlevel"/>
+<st id="GV3" editor="soundlevel"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+</sends>
+<accepts>
+<cmd id="SIRENCTRL">
+<p id="" editor="sirenctrl" init="GV0"/>
+</cmd>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosmremote" nls="nlssmremote">
+<editors/>
+<sts>
+<st id="ST" editor="remotetype"/>
+<st id="GV3" editor="batlevel"/>
+<st id="CLITEMP" editor="celsius"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yosmremoteF" nls="nlssmremote">
+<editors/>
+<sts>
+<st id="ST" editor="remotetype"/>
+<st id="GV3" editor="batlevel"/>
+<st id="CLITEMP" editor="farenheit"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="smremotekey" nls="nlssmkey">
+<editors/>
+<sts>
+<st id="ST" editor="keyscenedef"/>
+<st id="GV1" editor="keyscenedef"/>
+<st id="GV2" editor="keyscenedef"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+</sends>
+<accepts>
+<cmd id="KEYPRESS">
+<p id="" editor="keyscene" init="GV1"/>
+</cmd>
+<cmd id="KEYLPRESS">
+<p id="" editor="keyscene" init="GV2"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="smremotekeydual" nls="nlssmkeydual">
+<editors/>
+<sts>
+<st id="ST" editor="keyscenedef"/>
+<st id="GV1" editor="keyscenedef"/>
+<st id="GV2" editor="keyscenedef"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+</sends>
+<accepts>
+<cmd id="KEYPRESS">
+<p id="" editor="keyscene"/>
+</cmd>
+<cmd id="KEYLPRESS">
+<p id="" editor="keyscene"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="smremotekeysingle" nls="nlssmkeysingle">
+<editors/>
+<sts>
+<st id="ST" editor="keyscenedef"/>
+<st id="GV1" editor="keyscenedef"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends>
+<cmd id="DON"/>
+<cmd id="DOF"/>
+<cmd id="DFON"/>
+<cmd id="DFOF"/>
+</sends>
+<accepts>
+<cmd id="PRESSCMD">
+<p id="" editor="keyscene" init="GV1"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yothermostat" nls="nlsthermostat">
+<editors/>
+<sts>
+<st id="ST" editor="celsius"/>
+<st id="CLIHCS" editor="ITSTATHCS"/>
+<st id="CLIHUM" editor="IHUMIDITY"/>
+<st id="CLISPH" editor="celsius"/>
+<st id="CLISPC" editor="celsius"/>
+<st id="CLIMD" editor="ITSTATMODE"/>
+<st id="CLIFS" editor="ITSTATFAN"/>
+<st id="CLISMD" editor="celsius"/>
+<st id="GV0" editor="celsius"/>
+<st id="GV1" editor="celsius"/>
+<st id="GV2" editor="IAUXHEAT"/>
+<st id="GV3" editor="ISTAGE2"/>
+<st id="CLIEMD" editor="IECOMODE"/>
+<st id="GV18" editor="celsius"/>
+<st id="GV19" editor="celsius"/>
+<st id="GV5" editor="IDRRUNNING"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="SETHEATTEMP">
+<p id="" editor="celsiusSet" init="CLISPH"/>
+</cmd>
+<cmd id="SETCOOLTEMP">
+<p id="" editor="celsiusSet" init="CLISPC"/>
+</cmd>
+<cmd id="SETMODE">
+<p id="" editor="ITSTATMODE" init="CLIMD"/>
+</cmd>
+<cmd id="SETFAN">
+<p id="" editor="ITSTATFAN" init="CLIFS"/>
+</cmd>
+<cmd id="SETSCHE">
+<p id="" editor="ICLISMDDEG"/>
+</cmd>
+<cmd id="SETECO">
+<p id="ecomodeth" editor="IECOMODE" init="CLIEMD"/>
+<p id="ecoLowth" editor="ecoSet" init="GV18"/>
+<p id="ecoHighth" editor="ecoSet" init="GV19"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yothermostatf" nls="nlsthermostat">
+<editors/>
+<sts>
+<st id="ST" editor="farenheit"/>
+<st id="CLIHCS" editor="ITSTATHCS"/>
+<st id="CLIHUM" editor="IHUMIDITY"/>
+<st id="CLISPH" editor="farenheit"/>
+<st id="CLISPC" editor="farenheit"/>
+<st id="CLIMD" editor="ITSTATMODE"/>
+<st id="CLIFS" editor="ITSTATFAN"/>
+<st id="CLISMD" editor="ICLISMDDEG"/>
+<st id="GV0" editor="farenheit"/>
+<st id="GV1" editor="farenheit"/>
+<st id="GV2" editor="IAUXHEAT"/>
+<st id="GV3" editor="ISTAGE2"/>
+<st id="CLIEMD" editor="IECOMODE"/>
+<st id="GV18" editor="farenheit"/>
+<st id="GV19" editor="farenheit"/>
+<st id="GV5" editor="IDRRUNNING"/>
+<st id="GV20" editor="suspendstate"/>
+<st id="GV30" editor="status"/>
+<st id="TIME" editor="unixtime"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="SETHEATTEMP">
+<p id="" editor="farenheitSet" init="CLISPH"/>
+</cmd>
+<cmd id="SETCOOLTEMP">
+<p id="" editor="farenheitSet" init="CLISPC"/>
+</cmd>
+<cmd id="SETMODE">
+<p id="" editor="ITSTATMODE" init="CLIMD"/>
+</cmd>
+<cmd id="SETFAN">
+<p id="" editor="ITSTATFAN" init="CLIFS"/>
+</cmd>
+<cmd id="SETSCHE">
+<p id="" editor="ICLISMDDEG"/>
+</cmd>
+<cmd id="SETECO">
+<p id="ecomodeth" editor="IECOMODE" init="CLIEMD"/>
+<p id="ecoLowth" editor="ecoSetF" init="GV18"/>
+<p id="ecoHighth" editor="ecoSetF" init="GV19"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yothermprop" nls="nlsthermostatprop">
+<editors/>
+<sts>
+<st id="GV6" editor="IMINRUNTIME"/>
+<st id="GV7" editor="celsius"/>
+<st id="GV8" editor="celsius"/>
+<st id="GV9" editor="IMUTE"/>
+<st id="GV10" editor="IMENULOCK"/>
+<st id="GV11" editor="IMINRUNTIME"/>
+<st id="GV12" editor="IHOURS"/>
+<st id="GV13" editor="celsius"/>
+<st id="GV14" editor="IMINRUNTIME"/>
+<st id="GV15" editor="IHOURS"/>
+<st id="GV16" editor="celsius"/>
+<st id="GV17" editor="IMASTERSRC"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="SETMINRUNTIME">
+<p id="" editor="IMINRUNTIME" init="GV6"/>
+</cmd>
+<cmd id="SETCOOLLIMIT">
+<p id="" editor="celsiusSet" init="GV7"/>
+</cmd>
+<cmd id="SETHEATLIMIT">
+<p id="" editor="celsiusSet" init="GV8"/>
+</cmd>
+<cmd id="SETMUTE">
+<p id="" editor="IMUTE" init="GV9"/>
+</cmd>
+<cmd id="SETMENULOCK">
+<p id="" editor="IMENULOCK" init="GV10"/>
+</cmd>
+<cmd id="SETMASTER">
+<p id="" editor="IMASTERSRC" init="GV17"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+<nodeDef id="yothermpropf" nls="nlsthermostatprop">
+<editors/>
+<sts>
+<st id="GV6" editor="IMINRUNTIME"/>
+<st id="GV7" editor="farenheit"/>
+<st id="GV8" editor="farenheit"/>
+<st id="GV9" editor="IMUTE"/>
+<st id="GV10" editor="IMENULOCK"/>
+<st id="GV11" editor="IMINRUNTIME"/>
+<st id="GV12" editor="IHOURS"/>
+<st id="GV13" editor="farenheit"/>
+<st id="GV14" editor="IMINRUNTIME"/>
+<st id="GV15" editor="IHOURS"/>
+<st id="GV16" editor="farenheit"/>
+<st id="GV17" editor="IMASTERSRC"/>
+</sts>
+<cmds>
+<sends> </sends>
+<accepts>
+<cmd id="UPDATE"/>
+<cmd id="SETMINRUNTIME">
+<p id="" editor="IMINRUNTIME" init="GV6"/>
+</cmd>
+<cmd id="SETCOOLLIMIT">
+<p id="" editor="farenheitSet" init="GV7"/>
+</cmd>
+<cmd id="SETHEATLIMIT">
+<p id="" editor="farenheitSet" init="GV8"/>
+</cmd>
+<cmd id="SETMUTE">
+<p id="" editor="IMUTE" init="GV9"/>
+</cmd>
+<cmd id="SETMENULOCK">
+<p id="" editor="IMENULOCK" init="GV10"/>
+</cmd>
+<cmd id="SETMASTER">
+<p id="" editor="IMASTERSRC" init="GV17"/>
+</cmd>
+</accepts>
+</cmds>
+</nodeDef>
+</nodeDefs>

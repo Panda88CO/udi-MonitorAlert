@@ -49,6 +49,56 @@ def _ensure_node_control_static_schema(cursor: sqlite3.Cursor):
     columns = set(_get_table_columns(cursor, "node_control_static"))
     if "enum_map_json" not in columns:
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN enum_map_json TEXT")
+    if "uom_label" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN uom_label TEXT")
+    if "source" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN source TEXT")
+    if "is_timestamp_like" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN is_timestamp_like INTEGER NOT NULL DEFAULT 0")
+    if "storage_policy" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN storage_policy TEXT NOT NULL DEFAULT 'store_value'")
+    if "policy_reason" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN policy_reason TEXT")
+    if "refreshed_at_ms" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN refreshed_at_ms INTEGER")
+
+
+def _derive_storage_policy(uom: int | None) -> tuple[int, str, str]:
+    # UOM 151 is commonly used for timestamp-like values and can create low-value churn.
+    if _coerce_int(uom) == 151:
+        return 1, "skip_value_only_change", "uom151_timestamp_like"
+    return 0, "store_value", "default_store"
+
+
+def _decode_enum_map(raw: str | None) -> dict[str, str]:
+    if not raw:
+        return {}
+    try:
+        decoded = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    if isinstance(decoded, dict):
+        return {str(k): str(v) for k, v in decoded.items()}
+    return {}
+
+
+def _to_control_meta(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "node_id": row["node_id"],
+        "control": row["control"],
+        "name": row["name"],
+        "action": row["action"],
+        "uom": row["uom"],
+        "uom_label": row["uom_label"],
+        "source": row["source"],
+        "enum_map": _decode_enum_map(row["enum_map_json"]),
+        "is_timestamp_like": bool(row["is_timestamp_like"]),
+        "storage_policy": row["storage_policy"] or "store_value",
+        "policy_reason": row["policy_reason"],
+        "first_seen_ms": row["first_seen_ms"],
+        "last_seen_ms": row["last_seen_ms"],
+        "refreshed_at_ms": row["refreshed_at_ms"],
+    }
 
 
 def _ensure_events_dynamic_numeric_schema(cursor: sqlite3.Cursor):
@@ -106,8 +156,14 @@ def init_db():
             action TEXT,
             uom INTEGER,
             enum_map_json TEXT,
+            uom_label TEXT,
+            source TEXT,
+            is_timestamp_like INTEGER NOT NULL DEFAULT 0,
+            storage_policy TEXT NOT NULL DEFAULT 'store_value',
+            policy_reason TEXT,
             first_seen_ms INTEGER NOT NULL,
             last_seen_ms INTEGER NOT NULL,
+            refreshed_at_ms INTEGER,
             PRIMARY KEY (node_id, control)
         )
         """
@@ -195,6 +251,8 @@ def upsert_static_metadata(
     name: str | None = None,
     action: str | None = None,
     uom: int | None = None,
+    uom_label: str | None = None,
+    source: str | None = None,
     enum_value: int | None = None,
     enum_text: str | None = None,
     event_time_ms: int | None = None,
@@ -203,6 +261,7 @@ def upsert_static_metadata(
         return
 
     seen_ms = event_time_ms if event_time_ms is not None else _now_ms()
+    is_timestamp_like, storage_policy, policy_reason = _derive_storage_policy(_coerce_int(uom))
 
     conn = _connect()
     cursor = conn.cursor()
@@ -215,22 +274,49 @@ def upsert_static_metadata(
             action,
             uom,
             enum_map_json,
+            uom_label,
+            source,
+            is_timestamp_like,
+            storage_policy,
+            policy_reason,
             first_seen_ms,
-            last_seen_ms
+            last_seen_ms,
+            refreshed_at_ms
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id, control)
         DO UPDATE SET
             name = COALESCE(excluded.name, node_control_static.name),
             action = COALESCE(excluded.action, node_control_static.action),
             uom = COALESCE(excluded.uom, node_control_static.uom),
             enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
+            uom_label = COALESCE(excluded.uom_label, node_control_static.uom_label),
+            source = COALESCE(excluded.source, node_control_static.source),
+            is_timestamp_like = excluded.is_timestamp_like,
+            storage_policy = excluded.storage_policy,
+            policy_reason = excluded.policy_reason,
             last_seen_ms = CASE
                 WHEN excluded.last_seen_ms > node_control_static.last_seen_ms THEN excluded.last_seen_ms
                 ELSE node_control_static.last_seen_ms
-            END
+            END,
+            refreshed_at_ms = excluded.refreshed_at_ms
         """,
-        (node_id, control, name, action, uom, None, seen_ms, seen_ms),
+        (
+            node_id,
+            control,
+            name,
+            action,
+            uom,
+            None,
+            uom_label,
+            source,
+            is_timestamp_like,
+            storage_policy,
+            policy_reason,
+            seen_ms,
+            seen_ms,
+            seen_ms,
+        ),
     )
 
     # For enum UOM (25), store a static numeric-to-label translation map.
@@ -245,12 +331,7 @@ def upsert_static_metadata(
         )
         row = cursor.fetchone()
 
-        enum_map: dict[str, str] = {}
-        if row and row["enum_map_json"]:
-            try:
-                enum_map = json.loads(row["enum_map_json"])
-            except (TypeError, ValueError):
-                enum_map = {}
+        enum_map: dict[str, str] = _decode_enum_map(row["enum_map_json"] if row else None)
 
         key = str(enum_value)
         if enum_map.get(key) != str(enum_text):
@@ -268,8 +349,186 @@ def upsert_static_metadata(
                 (json.dumps(enum_map, separators=(",", ":")), seen_ms, seen_ms, node_id, control),
             )
 
+    cursor.execute(
+        """
+        SELECT
+            node_id,
+            control,
+            name,
+            action,
+            uom,
+            enum_map_json,
+            uom_label,
+            source,
+            is_timestamp_like,
+            storage_policy,
+            policy_reason,
+            first_seen_ms,
+            last_seen_ms,
+            refreshed_at_ms
+        FROM node_control_static
+        WHERE node_id = ? AND control = ?
+        """,
+        (node_id, control),
+    )
+    updated_row = cursor.fetchone()
+
     conn.commit()
     conn.close()
+    if updated_row is None:
+        return None
+    return _to_control_meta(updated_row)
+
+
+def bulk_upsert_static_metadata(
+    records: list[dict[str, Any]],
+    event_time_ms: int | None = None,
+) -> int:
+    """Upsert many node/control metadata rows in one transaction.
+
+    This is used by REST startup refresh where many rows are inserted at once.
+    """
+    if not records:
+        return 0
+
+    seen_ms = event_time_ms if event_time_ms is not None else _now_ms()
+    conn = _connect()
+    cursor = conn.cursor()
+    applied = 0
+
+    try:
+        for rec in records:
+            node_id = str(rec.get("node_id") or "").strip()
+            control = str(rec.get("control") or "").strip()
+            if not node_id or not control:
+                continue
+
+            uom = rec.get("uom")
+            is_timestamp_like, storage_policy, policy_reason = _derive_storage_policy(_coerce_int(uom))
+
+            cursor.execute(
+                """
+                INSERT INTO node_control_static (
+                    node_id,
+                    control,
+                    name,
+                    action,
+                    uom,
+                    enum_map_json,
+                    uom_label,
+                    source,
+                    is_timestamp_like,
+                    storage_policy,
+                    policy_reason,
+                    first_seen_ms,
+                    last_seen_ms,
+                    refreshed_at_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(node_id, control)
+                DO UPDATE SET
+                    name = COALESCE(excluded.name, node_control_static.name),
+                    action = COALESCE(excluded.action, node_control_static.action),
+                    uom = COALESCE(excluded.uom, node_control_static.uom),
+                    enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
+                    uom_label = COALESCE(excluded.uom_label, node_control_static.uom_label),
+                    source = COALESCE(excluded.source, node_control_static.source),
+                    is_timestamp_like = excluded.is_timestamp_like,
+                    storage_policy = excluded.storage_policy,
+                    policy_reason = excluded.policy_reason,
+                    last_seen_ms = CASE
+                        WHEN excluded.last_seen_ms > node_control_static.last_seen_ms THEN excluded.last_seen_ms
+                        ELSE node_control_static.last_seen_ms
+                    END,
+                    refreshed_at_ms = excluded.refreshed_at_ms
+                """,
+                (
+                    node_id,
+                    control,
+                    rec.get("name"),
+                    rec.get("action"),
+                    uom,
+                    None,
+                    rec.get("uom_label"),
+                    rec.get("source"),
+                    is_timestamp_like,
+                    storage_policy,
+                    policy_reason,
+                    seen_ms,
+                    seen_ms,
+                    seen_ms,
+                ),
+            )
+
+            enum_value = rec.get("enum_value")
+            enum_text = rec.get("enum_text")
+            if _coerce_int(uom) == 25 and enum_value is not None and enum_text:
+                cursor.execute(
+                    """
+                    SELECT enum_map_json
+                    FROM node_control_static
+                    WHERE node_id = ? AND control = ?
+                    """,
+                    (node_id, control),
+                )
+                row = cursor.fetchone()
+                enum_map = _decode_enum_map(row["enum_map_json"] if row else None)
+                key = str(enum_value)
+                if enum_map.get(key) != str(enum_text):
+                    enum_map[key] = str(enum_text)
+                    cursor.execute(
+                        """
+                        UPDATE node_control_static
+                        SET enum_map_json = ?,
+                            last_seen_ms = CASE
+                                WHEN ? > last_seen_ms THEN ?
+                                ELSE last_seen_ms
+                            END
+                        WHERE node_id = ? AND control = ?
+                        """,
+                        (json.dumps(enum_map, separators=(",", ":")), seen_ms, seen_ms, node_id, control),
+                    )
+
+            applied += 1
+
+        conn.commit()
+        return applied
+    finally:
+        conn.close()
+
+
+def load_control_metadata_index() -> dict[tuple[str, str], dict[str, Any]]:
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            node_id,
+            control,
+            name,
+            action,
+            uom,
+            enum_map_json,
+            uom_label,
+            source,
+            is_timestamp_like,
+            storage_policy,
+            policy_reason,
+            first_seen_ms,
+            last_seen_ms,
+            refreshed_at_ms
+        FROM node_control_static
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        node_id = str(row["node_id"])
+        control = str(row["control"])
+        out[(node_id, control)] = _to_control_meta(row)
+    return out
 
 
 def insert_dynamic_event(

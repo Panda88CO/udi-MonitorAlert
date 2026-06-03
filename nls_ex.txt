@@ -1,0 +1,1374 @@
+
+ND-setup-NAME=YoLink Setup
+ND-setup-ICON=GenericCtrl
+ST-nlssetup-GV1-NAME=Status
+ST-nlssetup-ST-NAME=Node Server
+ST-nlssetup-TIME-NAME=LastPoll Time
+CMD-nlssetup-DON-NAME=Heart Beat On
+CMD-nlssetup-DOF-NAME=Heart Beat Off
+
+
+
+
+CMDP-ondelay-NAME=On delay (0 if no delay)
+CMDP-offdelay-NAME=Off delay (0 if no delay)
+
+
+ND-yoScheduleSec-NAME=Schedules
+ND-yoScheduleSec-ICON=GenericCtl
+ND-yoMScheduleSec-NAME=Schedules
+ND-yoMScheduleSec-ICON=GenericCtl
+ND-yoirScheduleSec-NAME=Schedules
+ND-yoirScheduleSec-ICON=GenericCtl
+ND-yoSchedule-NAME=Schedules
+ND-yoSchedule-ICON=GenericCtl
+ND-yoMSchedule-NAME=Schedules
+ND-yoMSchedule-ICON=GenericCtl
+ND-yoirSchedule-NAME=Schedules
+ND-yoirSchedule-ICON=GenericCtl
+ND-yoSprinklerScheduleSec-NAME=Sprinkler Schedules
+ND-yoSprinklerScheduleSec-ICON=GenericCtl
+ND-yoSprinklerSchedule-NAME=Sprinkler Schedules
+ND-yoSprinklerSchedule-ICON=GenericCtl
+ND-yoWMScheduleSec-NAME=Water Meter Schedules
+ND-yoWMScheduleSec-ICON=GenericCtl
+ND-yoWMSchedule-NAME=Water Meter Schedules
+ND-yoWMSchedule-ICON=GenericCtl
+ND-yoWMVlScheduleSec-NAME=Water Meter Valve Schedules
+ND-yoWMVlScheduleSec-ICON=GenericCtl
+ND-yoWMVlSchedule-NAME=Water Meter Valve Schedules
+ND-yoWMVlSchedule-ICON=GenericCtl
+ND-yoWMLkScheduleSec-NAME=Water Meter Leak Schedules
+ND-yoWMLkScheduleSec-ICON=GenericCtl
+ND-yoWMLkSchedule-NAME=Water Meter Leak Schedules
+ND-yoWMLkSchedule-ICON=GenericCtl
+ST-nlsschedule-GV12-NAME=Selected code/port
+ST-nlsschedule-GV13-NAME=Schedule Index
+ST-nlsschedule-GV14-NAME=Activated
+ST-nlsschedule-GV15-NAME=On Hour
+ST-nlsschedule-GV16-NAME=On Minute
+ST-nlsschedule-GV21-NAME=On Sec
+ST-nlsschedule-GV17-NAME=Off Hour
+ST-nlsschedule-GV18-NAME=Off Minute
+ST-nlsschedule-GV19-NAME=Active Days
+ST-nlsschedule-GV22-NAME=Off Sec
+ST-nlsschedule-GV23-NAME=Total Schedules
+CMD-nlsschedule-CTRLSCH-NAME=Set Schedule
+CMD-nlsschedule-LOOKUPSCH-NAME=Lookup Schedule
+CMD-nlsschedule-DEFINESCH-NAME=Define Schedule
+CMD-nlsschedule-UPDATE-NAME=Update Status
+CMDP-key-NAME=Ir code Number (1-64)
+CMDP-ch-NAME=Output port(0-3)
+CMDP-index-NAME=Schedule Index
+CMD-nlssmremote-UPDATE-NAME=Update
+
+CMDP-onH-NAME=On Hour
+CMDP-onM-NAME=On Min
+CMDP-onS-NAME=On Seconds
+CMDP-offH-NAME=Off Hour
+CMDP-offM-NAME=Off Min
+CMDP-offS-NAME=Off Seconds
+CMDP-bindays-NAME=Active Days (Su|Mo|Tu|We|Th|Fr|Sa)
+
+ST-nlswmschedule-GV12-NAME=Leak Limit
+ST-nlswmschedule-GV13-NAME=Schedule Index
+ST-nlswmschedule-GV14-NAME=Activated
+ST-nlswmschedule-GV15-NAME=On Hour
+ST-nlswmschedule-GV21-NAME=On Sec
+ST-nlswmschedule-GV17-NAME=Off Hour
+ST-nlswmschedule-GV18-NAME=Off Minute
+ST-nlswmschedule-GV22-NAME=Off Sec
+ST-nlswmschedule-GV19-NAME=Active Days
+CMD-nlswmschedule-CTRLSCH-NAME=Set Schedule
+CMD-nlswmschedule-LOOKUPSCH-NAME=Lookup Schedule
+CMD-nlswmschedule-DEFINESCH-NAME=Define Schedule
+CMD-nlswmschedule-UPDATE-NAME=Update Status
+ST-nlswmvalveschedule-GV12-NAME=Reserved
+ST-nlswmvalveschedule-GV13-NAME=Schedule Index
+ST-nlswmvalveschedule-GV14-NAME=Activated
+ST-nlswmvalveschedule-GV15-NAME=On Hour
+ST-nlswmvalveschedule-GV21-NAME=On Sec
+ST-nlswmvalveschedule-GV17-NAME=Off Hour
+ST-nlswmvalveschedule-GV18-NAME=Off Minute
+ST-nlswmvalveschedule-GV22-NAME=Off Sec
+ST-nlswmvalveschedule-GV19-NAME=Active Days
+CMD-nlswmvalveschedule-CTRLSCH-NAME=Set Schedule
+CMD-nlswmvalveschedule-LOOKUPSCH-NAME=Lookup Schedule
+CMD-nlswmvalveschedule-DEFINESCH-NAME=Define Schedule
+CMD-nlswmvalveschedule-UPDATE-NAME=Update Status
+
+
+ST-nlswmleakschedule-GV13-NAME=Schedule Index
+ST-nlswmleakschedule-GV14-NAME=Activated
+ST-nlswmleakschedule-GV15-NAME=On Hour
+ST-nlswmleakschedule-GV16-NAME=On Minute
+ST-nlswmleakschedule-GV21-NAME=On Sec
+
+ST-nlswmleakschedule-GV18-NAME=Off Minute
+ST-nlswmleakschedule-GV22-NAME=Off Sec
+ST-nlswmleakschedule-GV19-NAME=Active Days
+ST-nlswmleakschedule-GV23-NAME=Total Schedules
+CMD-nlswmleakschedule-CTRLSCH-NAME=Set Schedule
+CMD-nlswmleakschedule-LOOKUPSCH-NAME=Lookup Schedule
+CMD-nlswmleakschedule-UPDATE-NAME=Update Status
+
+ND-yoswitch-NAME=YoLink Switch
+ND-yoswitch-ICON=Switch
+ND-yoswitchBat-NAME=YoLink Battery Switch
+ND-yoswitchBat-ICON=Switch
+ST-nlsswitch-ST-NAME=Switch State
+ST-nlsswitch-GV0-NAME=Switch State (Legacy)
+ST-nlsswitch-GV1-NAME=On Delay (min)
+ST-nlsswitch-GV2-NAME=Off Delay (min)
+ST-nlsswitch-BATLVL-NAME=Battery Level
+ST-nlsswitch-GV3-NAME=Watt
+ST-nlsswitch-GV4-NAME=Energy
+ST-nlsswitch-GV5-NAME=Overload Alert
+ST-nlsswitch-GV6-NAME=High Load Alert
+ST-nlsswitch-GV7-NAME=Low Load Alert
+ST-nlsswitch-GV8-NAME=High Temperature Alert
+ST-nlsswitch-GV9-NAME=Led State
+ST-nlsswitch-GV20-NAME=Connection State
+ST-nlsswitch-GV30-NAME=Online State
+ST-nlsswitch-TIME-NAME=Last device update
+
+CMD-nlsswitch-DON-NAME=Switch On
+CMD-nlsswitch-DOF-NAME=Switch Off
+CMD-nlsswitch-DFON-NAME=Switch Fast On 
+CMD-nlsswitch-DFOF-NAME=Switch Fast Off
+CMD-nlsswitch-DELAYCTRL-NAME=Program Delays
+CMD-nlsswitch-UPDATE-NAME=Update Status
+CMD-nlsswitch-SWCTRL-NAME=Switch control
+CMD-nlsswitch-SETATTRIB-NAME=LED control
+
+
+ND-yooutlet-NAME=YoLink Outlet
+ND-yooutlet-ICON=Switch
+ND-yooutletPwr-NAME=YoLink Outlet
+ND-yooutletPwr-ICON=Switch
+ST-nlsoutlet-ST-NAME=Outlet State
+ST-nlsoutlet-GV0-NAME=Outlet State (Legacy)
+ST-nlsoutlet-GV1-NAME=On Delay Remaining
+ST-nlsoutlet-GV2-NAME=Off Delay Remaining
+ST-nlsoutlet-GV3-NAME=Watt
+ST-nlsoutlet-GV4-NAME=Energy
+ST-nlsoutlet-GV5-NAME=Overload Alert
+ST-nlsoutlet-GV6-NAME=High Load Alert
+ST-nlsoutlet-GV7-NAME=Low Load Alert
+ST-nlsoutlet-GV8-NAME=High Temperature Alert
+
+ST-nlsoutlet-GV20-NAME=Connection State
+ST-nlsoutlet-GV30-NAME=Online State
+ST-nlsoutlet-TIME-NAME=Last device update
+
+CMD-nlsoutlet-DON-NAME=Switch On
+CMD-nlsoutlet-DOF-NAME=Switch Off
+CMD-nlsoutlet-DELAYCTRL-NAME=Program Delays
+
+CMD-nlsoutlet-UPDATE-NAME=Update Status
+CMD-nlsoutlet-SWCTRL-NAME=Switch control
+
+
+
+ND-yomultiout-NAME=YoLink Outlet
+ND-yomultiout-ICON=Switch
+ST-nlsmultiout-ST-NAME=Node Server Status
+ST-nlsmultiout-GV12-NAME=Port
+ST-nlsmultiout-GV13-NAME=Schedule Index
+ST-nlsmultiout-GV14-NAME=Activated
+ST-nlsmultiout-GV15-NAME=On Hour
+ST-nlsmultiout-GV21-NAME=On Sec
+ST-nlsmultiout-GV16-NAME=On Minute
+ST-nlsmultiout-GV17-NAME=Off Hour
+ST-nlsmultiout-GV18-NAME=Off Minute
+ST-nlsmultiout-GV22-NAME=Off Sec
+ST-nlsmultiout-GV19-NAME=Active Days
+ST-nlsmultiout-GV20-NAME=Connection State
+ST-nlsmultiout-GV30-NAME=Online State
+ST-nlsmultiout-TIME-NAME=Last device update
+
+CMD-nlsmultiout-UPDATE-NAME=Update Status
+ 
+ND-yosubout-NAME=YoLink subOutlet
+ND-yosubout-ICON=Switch
+
+ST-nlssubout-ST-NAME=Outlet State
+ST-nlssubout-GV0-NAME=Outlet State (Legacy)
+ST-nlssubout-GV1-NAME=On Delay Remaining
+ST-nlssubout-GV2-NAME=Off Delay Remaining
+ST-nlssubout-GV4-NAME=Outlet 
+ST-nlssubout-GV30-NAME=Online State
+CMD-nlssubout-DON-NAME=Switch On
+CMD-nlssubout-DOF-NAME=Switch Off
+CMD-nlssubout-UPDATE-NAME=Update Status
+CMD-nlssubout-SWCTRL-NAME=Switch control
+CMD-nlssubout-DELAYCTRL-NAME=Program Delays
+
+
+ND-yosubusb-NAME=YoLink USB Ports
+ND-yosubusb-ICON=Switch
+ST-nlssubusb-ST-NAME=USB Power State
+ST-nlssubusb-GV0-NAME=USB Power
+ST-nlssubusb-GV30-NAME=Online State
+CMD-nlssubusb-USBCTRL-NAME=USB Power
+CMD-nlssubusb-DON-NAME=Enabled
+CMD-nlssubusb-DOF-NAME=Disabled
+CMD-nlssubusb-UPDATE-NAME=Update Status
+
+ND-yomanipu-NAME=YoLink Manipulator
+ND-yomanipu-ICON=GenericCtrl
+ST-nlsmanipu-ST-NAME=Manipulator State
+ST-nlsmanipu-GV0-NAME=Manipulator State (Legacy)
+ST-nlsmanipu-GV1-NAME=On Delay Remaining
+ST-nlsmanipu-GV2-NAME=Off Delay Remaining
+ST-nlsmanipu-BATLVL-NAME=Battery Level
+ST-nlsmanipu-GV20-NAME=Connection State
+ST-nlsmanipu-GV30-NAME=Online State
+ST-nlsmanipu-TIME-NAME=Last device update
+CMD-nlsmanipu-MANCTRL-NAME=Switch control
+CMD-nlsmanipu-MOPEN-NAME=Open
+CMD-nlsmanipu-MCLOSE-NAME=Closed
+CMD-nlsmanipu-DELAYCTRL-NAME=Program Delays
+CMD-nlsmanipu-UPDATE-NAME=Update Status
+
+ND-yothsens-NAME=YoLink THsensor
+ND-yothsens-ICON=TempSensor
+ND-yothsensF-NAME=YoLink THsensor
+ND-yothsensF-ICON=TempSensor
+ST-nlsthsens-ST-NAME=Sensor Temperature
+ST-nlsthsens-GV1-NAME=Low Temp Alarm
+ST-nlsthsens-GV2-NAME=High Temp Alarm
+ST-nlsthsens-GV4-NAME=Low Humidity Alarm
+ST-nlsthsens-GV5-NAME=High Humidity Alarm
+ST-nlsthsens-GV7-NAME=Battery Alarm
+ST-nlsthsens-GV8-NAME=Alarm triggered
+ST-nlsthsens-GV9-NAME=Command Setting
+ST-nlsthsens-GV10-NAME=Low Temp Alarm Limit
+ST-nlsthsens-GV11-NAME=High Temp Alarm Limit
+ST-nlsthsens-GV12-NAME=Low Humidity Alarm Limit
+ST-nlsthsens-GV13-NAME=High Humidity Alarm Limit
+ST-nlsthsens-GV14-NAME=Low Temp 24H
+ST-nlsthsens-GV15-NAME=High Temp 24H
+ST-nlsthsens-GV16-NAME=Low Humidity  24H
+ST-nlsthsens-GV17-NAME=High Humidity 24H
+ST-nlsthsens-GV20-NAME=Connection State
+ST-nlsthsens-GV30-NAME=Online State
+ST-nlsthsens-BATLVL-NAME=Battery Level
+ST-nlsthsens-TIME-NAME=Last device update
+ST-nlsthsens-CLITEMP-NAME=Sensor Temperature (legacy)
+ST-nlsthsens-CLIHUM-NAME=Current Rel Humidity (%)
+CMD-nlsthsens-SETCMD-NAME=Select Command (Alert) Action
+CMD-nlsthsens-UPDATE-NAME=Update Status
+
+ND-yotsens-NAME=YoLink T Sensor
+ND-yotsens-ICON=TempSensor
+ND-yotsensF-NAME=YoLink T Sensor
+ND-yotsensF-ICON=TempSensor
+ST-nlstsens-ST-NAME=Sensor Temperature
+ST-nlstsens-GV1-NAME=Low Temp Alarm
+ST-nlstsens-GV2-NAME=High Temp Alarm
+ST-nlstsens-GV4-NAME=Low Humidity Alarm
+ST-nlstsens-GV5-NAME=High Humidity Alarm
+ST-nlstsens-GV7-NAME=Battery Alarm
+ST-nlstsens-GV8-NAME=Alarm triggered
+ST-nlstsens-GV9-NAME=Command Setting
+ST-nlstsens-GV10-NAME=Low Temp Alarm Limit
+ST-nlstsens-GV11-NAME=High Temp Alarm Limit
+ST-nlstsens-GV12-NAME=Low Humidity Alarm Limit
+ST-nlstsens-GV13-NAME=High Humidity Alarm Limit
+ST-nlstsens-GV14-NAME=Low Temp 24H
+ST-nlstsens-GV15-NAME=High Temp 24H
+ST-nlstsens-GV16-NAME=Low Humidity 24H
+ST-nlstsens-GV17-NAME=High Humidity 24H
+ST-nlstsens-GV20-NAME=Connection State
+ST-nlstsens-GV30-NAME=Online State
+ST-nlstsens-BATLVL-NAME=Battery Level
+ST-nlstsens-TIME-NAME=Last device update
+ST-nlstsens-CLITEMP-NAME=Sensor Temperature (legacy)
+ST-nlstsens-CLIHUM-NAME=Current Rel Humidity (%)
+CMD-nlstsens-SETCMD-NAME=Select Command (Alert) Action
+CMD-nlstsens-UPDATE-NAME=Update Status
+
+ND-yosoilsensor-NAME=YoLink Soil Sensor
+ND-yosoilsensor-ICON=Weather
+ND-yosoilsensorF-NAME=YoLink Soil Sensor
+ND-yosoilsensorF-ICON=Weather
+
+ST-nlssoilsensor-ST-NAME=Soil Conductivity (mS/cm)
+ST-nlssoilsensor-CLITEMP-NAME=Sensor Temperature
+ST-nlssoilsensor-CLIHUM-NAME=Current Rel Humidity (%)
+ST-nlssoilsensor-GV1-NAME=Low Conductivity Alarm
+ST-nlssoilsensor-GV2-NAME=High Conductivity Alarm
+ST-nlssoilsensor-GV3-NAME=Low Temp Alarm
+ST-nlssoilsensor-GV4-NAME=High Temp Alarm
+ST-nlssoilsensor-GV5-NAME=Low Humidity Alarm
+ST-nlssoilsensor-GV6-NAME=High Humidity Alarm
+ST-nlssoilsensor-GV7-NAME=Period Alarm
+ST-nlssoilsensor-GV8-NAME=Alarm triggered
+ST-nlssoilsensor-BATLVL-NAME=Battery Level
+ST-nlssoilsensor-GV9-NAME=Command Setting
+
+ST-nlssoilsensor-GV10-NAME=Low Temp Alarm Limit
+ST-nlssoilsensor-GV11-NAME=High Temp Alarm Limit
+ST-nlssoilsensor-GV12-NAME=Low Humidity Alarm Limit
+ST-nlssoilsensor-GV13-NAME=High Humidity Alarm Limit
+ST-nlssoilsensor-GV14-NAME=Low Conductivity Alarm Limit (mS/cm)
+ST-nlssoilsensor-GV15-NAME=High Conductivity Alarm Limit (mS/cm)
+ST-nlssoilsensor-GV20-NAME=Connection State
+ST-nlssoilsensor-GV30-NAME=Online State
+ST-nlssoilsensor-TIME-NAME=Last device update
+CMD-nlssoilsensor-SETCMD-NAME=Select Command (Alert) Action
+CMD-nlssoilsensor-UPDATE-NAME=Update Status
+
+
+ND-yogarage-NAME=YoLink Garage Controller
+ND-yogarage-ICON=Switch
+ST-nlsgarage-ST-NAME=Node Server Status
+ST-nlsgarage-GV20-NAME=Connection State
+ST-nlsgarage-GV30-NAME=Online State
+
+CMD-nlsgarage-TOGGLE-NAME=Toggle Door
+
+
+
+ND-yodoorsens-NAME=YoLink Door Sensor
+ND-yodoorsens-ICON=DoorLock
+ST-nlsdoorsens-ST-NAME=Door State
+ST-nlsdoorsens-GV0-NAME=Door State (Legacy)
+ST-nlsdoorsens-GV1-NAME=Sensor Battery Level
+ST-nlsdoorsens-GV2-NAME=Command Setting
+ST-nlsdoorsens-GV3-NAME=Last State Change
+ST-nlsdoorsens-GV20-NAME=Connection State
+ST-nlsdoorsens-GV30-NAME=Online State
+ST-nlsdoorsens-TIME-NAME=Last device update
+CMD-nlsdoorsens-SETCMD-NAME=Select Command Action
+CMD-nlsdoorsens-DON-NAME=Open
+CMD-nlsdoorsens-DOF-NAME=Closed
+CMD-nlsdoorsens-UPDATE-NAME=Update Status
+
+ND-yomotionsens-NAME=YoLink Motion Sensor
+ND-yomotionsens-ICON=MotionSensor
+ND-yomotionsensF-NAME=YoLink Motion Sensor
+ND-yomotionsensF-ICON=MotionSensor
+ST-nlsmotionsens-ST-NAME=Motion State
+ST-nlsmotionsens-GV0-NAME=Motion State (Legacy)
+ST-nlsmotionsens-GV1-NAME=Sensor Battery Level
+ST-nlsmotionsens-GV2-NAME=Command Setting
+ST-nlsmotionsens-GV20-NAME=Connection State
+ST-nlsmotionsens-GV30-NAME=Online State
+ST-nlsmotionsens-TIME-NAME=Last device update
+ST-nlsmotionsens-CLITEMP-NAME=Sensor Temperature
+CMD-nlsmotionsens-SETCMD-NAME=Select Command Action
+CMD-nlsmotionsens-DON-NAME=Motion
+CMD-nlsmotionsens-DOF-NAME=No Motion
+CMD-nlsmotionsens-UPDATE-NAME=Update Status
+
+ND-yoleaksens-NAME=YoLink Water Sensor
+ND-yoleaksens-ICON=Irrigation
+ND-yoleaksensF-NAME=YoLink Water Sensor
+ND-yoleaksensF-ICON=Irrigation
+ST-nlsleaksens-ST-NAME=Water State
+ST-nlsleaksens-GV0-NAME=Water State (Legacy)
+ST-nlsleaksens-GV2-NAME=Command Setting
+ST-nlsleaksens-GV3-NAME=Last State Change
+ST-nlsleaksens-CLITEMP-NAME=Sensor Temperature
+ST-nlsleaksens-GV4-NAME=Sensor Sound
+ST-nlsleaksens-GV5-NAME=Operating Mode
+ST-nlsleaksens-GV6-NAME=Sensitivity
+ST-nlsleaksens-GV7-NAME=Sensor Move Alert
+ST-nlsleaksens-GV8-NAME=Sensor Freeze Alert
+ST-nlsleaksens-GV9-NAME=Sensor Error
+ST-nlsleaksens-GV10-NAME=Reminder
+
+ST-nlsleaksens-GV20-NAME=Connection State
+ST-nlsleaksens-GV30-NAME=Online State
+ST-nlsleaksens-BATLVL-NAME=Battery Level
+ST-nlsleaksens-TIME-NAME=Last device update
+CMD-nlsleaksens-SETCMD-NAME=Select Command Action
+CMD-nlsleaksens-SETBEEP-NAME=Set Beep Alert
+CMD-nlsleaksens-DON-NAME=Water Alert Detected
+CMD-nlsleaksens-DOF-NAME=Normal
+CMD-nlsleaksens-UPDATE-NAME=Update Status
+
+ND-yovibrasens-NAME=YoLink Vibration Sensor
+ND-yovibrasens-ICON=MotionSensor
+ND-yovibrasensF-NAME=YoLink Vibration Sensor
+ND-yovibrasensF-ICON=MotionSensor
+ST-nlsvibrasens-ST-NAME=Vibration State
+ST-nlsvibrasens-GV0-NAME=Vibration State (Legacy)
+ST-nlsvibrasens-GV1-NAME=Sensor Battery Level
+ST-nlsvibrasens-GV2-NAME=Command Setting
+ST-nlsvibrasens-GV20-NAME=Connection State
+ST-nlsvibrasens-GV30-NAME=Online State
+ST-nlsvibrasens-TIME-NAME=Last device update
+ST-nlsvibrasens-CLITEMP-NAME=Sensor Temperature
+CMD-nlsvibrasens-SETCMD-NAME=Select Command Action
+CMD-nlsvibrasens-DON-NAME=Vibration Detected
+CMD-nlsvibrasens-DOF-NAME=Normal
+CMD-nlsvibrasens-UPDATE-NAME=Update Status
+
+ND-yohub-NAME=YoLink Hub
+ND-yohub-ICON=GenericCtl
+ST-nlshub-ST-NAME=Status
+ST-nlshub-GV20-NAME=Connection State
+ST-nlshub-GV30-NAME=Online State
+ST-nlshub-TIME-NAME=Last device update
+CMD-nlshub-UPDATE-NAME=Update
+
+ND-yohubbat-NAME=YoLink Hub w Battery
+ND-yohubbat-ICON=GenericCtl
+ST-nlshubbat-ST-NAME=Supply Status
+ST-nlshubbat-GV0-NAME=Battery Status
+ST-nlshubbat-GV20-NAME=Connection State
+ST-nlshubbat-GV30-NAME=Online State
+ST-nlshubbat-TIME-NAME=Last device update
+CMD-nlshubbat-UPDATE-NAME=Update
+
+ND-yospeakerh-NAME=YoLink Speaker Hub
+ND-yospeakerh-ICON=GenericCtl
+ST-nlsspeakerh-ST-NAME=Nodeserver Status
+ST-nlsspeakerh-GV0-NAME=Speaker volume
+ST-nlsspeakerh-GV1-NAME=Command Beep
+ST-nlsspeakerh-GV2-NAME=Mute
+ST-nlsspeakerh-GV3-NAME=Tone Type
+ST-nlsspeakerh-GV4-NAME=Message
+ST-nlsspeakerh-GV5-NAME=Repeat
+ST-nlsspeakerh-GV20-NAME=Connection State
+ST-nlsspeakerh-GV30-NAME=Online State
+ST-nlsspeakerh-TIME-NAME=Last device update
+CMD-nlsspeakerh-UPDATE-NAME=Update Status
+CMD-nlsspeakerh-PLAY-NAME=Play Message
+CMDP-volume-NAME=Volume
+CMD-nlsspeakerh-BEEP-NAME=Beep
+CMD-nlsspeakerh-MUTE-NAME=Mute
+CMDP-tone-NAME=Tone
+CMDP-repeat-NAME=Repeat
+CMDP-message-NAME=Select Message
+
+
+ND-yolock-NAME=YoLink Smart Lock
+ND-yolock-ICON=DoorLock
+ST-nlslock-ST-NAME=Lock State
+ST-nlslock-GV0-NAME=Lock State (legacy)
+ST-nlslock-GV1-NAME=Battery Level
+ST-nlslock-GV2-NAME=Doorbell Active
+ST-nlslock-GV3-NAME=Door State
+ST-nlslock-GV4-NAME=Lock Action
+ST-nlslock-GV5-NAME=Source
+ST-nlslock-GV20-NAME=Connection State
+ST-nlslock-GV30-NAME=Online State
+ST-nlslock-TIME-NAME=Last device update
+CMD-nlslock-LOCK-NAME=Lock
+CMD-nlslock-UNLOCK-NAME=Unlock
+CMD-nlslock-LOCKCTRL-NAME=Set Lock
+CMD-nlslock-UPDATE-NAME=Update 
+
+ND-yodimmer-NAME=YoLink Dimmer
+ND-yodimmer-ICON=Switch
+ST-nlsdimmer-ST-NAME=Dim Setting
+ST-nlsdimmer-GV0-NAME=Switch State
+ST-nlsdimmer-GV1-NAME=On Delay
+ST-nlsdimmer-GV2-NAME=Off Delay
+ST-nlsdimmer-GV3-NAME=Light Level
+ST-nlsdimmer-GV4-NAME=Light Down Level
+ST-nlsdimmer-GV5-NAME=Light Up Level
+ST-nlsdimmer-GV9-NAME=LED Status
+ST-nlsdimmer-GV13-NAME=Schedule Index
+ST-nlsdimmer-GV14-NAME=Activated
+ST-nlsdimmer-GV15-NAME=On Hour
+ST-nlsdimmer-GV16-NAME=On Minute
+ST-nlsdimmer-GV21-NAME=On Sec
+ST-nlsdimmer-GV17-NAME=Off Hour
+ST-nlsdimmer-GV18-NAME=Off Minute
+ST-nlsdimmer-GV22-NAME=Off Sec
+ST-nlsdimmer-GV19-NAME=Active Days
+ST-nlsdimmer-GV20-NAME=Connection State
+ST-nlsdimmer-GV30-NAME=Online State
+ST-nlsdimmer-TIME-NAME=Last device update
+CMD-nlsdimmer-DIMLVL-NAME=Light Level (%)
+CMD-nlsdimmer-DIMDOWN-NAME=Light Down Level (%)
+CMD-nlsdimmer-DIMUP-NAME=Light Up Level (%)
+CMD-nlsdimmer-DELAYCTRL-NAME=Program Delays
+CMD-nlsdimmer-UPDATE-NAME=Update Status
+CMD-nlsdimmer-SWCTRL-NAME=Switch control
+CMD-nlsdimmer-SETATTRIB-NAME=LED control
+
+ND-yoirremote-NAME=YoLink Ir Remoter
+ND-yoirremote-ICON=Output
+ST-nlsirremote-ST-NAME=Last Command Status
+ST-nlsirremote-GV0-NAME=Number of Learned codes
+ST-nlsirremote-GV1-NAME=Battery Level (legacy)
+ST-nlsirremote-GV2-NAME=Last Command Status (legacy)
+ST-nlsirremote-GV20-NAME=Connection State
+ST-nlsirremote-GV30-NAME=Online State
+ST-nlsirremote-TIME-NAME=Last device update
+CMD-nlsirremote-LEARNCODE-NAME=Learn New Code
+CMD-nlsirremote-UPDATE-NAME=Update
+
+ND-yoircode-NAME=YoLink Ir Code
+ND-yoircode-ICON=Output
+ST-nlsircode-ST-NAME=TX success
+ST-nlsircode-GV20-NAME=Connection State
+ST-nlsircode-GV30-NAME=Online State
+ST-nlsircode-TIME-NAME=Last device update
+CMD-nlsircode-TXCODE-NAME=Send IR Code
+
+
+
+ND-yoCOSmokesens-NAME=YoLink COSmokeSensor
+ND-yoCOSmokesens-ICON=SmokeSensor
+ND-yoCOSmokesensF-NAME=YoLink COSmokeSensor
+ND-yoCOSmokesensF-ICON=SmokeSensor
+ST-nlssmokesens-ST-NAME=Alarm
+ST-nlssmokesens-ALARM-NAME=Alert Detected
+ST-nlssmokesens-GV0-NAME=Smoke Detection
+ST-nlssmokesens-GV1-NAME=CO Detection
+ST-nlssmokesens-GV2-NAME=High Temp Detection
+ST-nlssmokesens-GV3-NAME=Battery Problem Detection
+ST-nlssmokesens-GV5-NAME=Self-check 
+ST-nlssmokesens-GV4-NAME=Sensor Battery Level
+ST-nlssmokesens-GV7-NAME=Command Setting
+ST-nlssmokesens-GV20-NAME=Connection State
+ST-nlssmokesens-GV30-NAME=Online State
+ST-nlssmokesens-TIME-NAME=Last device update
+ST-nlssmokesens-CLITEMP-NAME=Sensor Temperature
+
+CMD-nlssmokesens-UPDATE-NAME=Update Status
+CMD-nlssmokesens-SETCMD-NAME=Select Command Action
+CMD-nlssmokesens-DON-NAME=Alert Detected
+CMD-nlssmokesens-DOF-NAME=Normal
+
+ND-yopwralarm-NAME=YoLink Power Failure Alarm
+ND-yopwralarm-ICON=Input
+ST-nlspwralarm-ST-NAME=Unit State
+ST-nlspwralarm-GV0-NAME=Unit State (Legacy)
+ST-nlspwralarm-GV1-NAME=Battery Level
+ST-nlspwralarm-GV2-NAME=Alert Pending
+ST-nlspwralarm-GV3-NAME=Power on Unit
+ST-nlspwralarm-GV4-NAME=Muted
+ST-nlspwralarm-GV7-NAME=Command Setting
+ST-nlspwralarm-GV20-NAME=Connection State
+ST-nlspwralarm-GV30-NAME=Online State
+ST-nlspwralarm-TIME-NAME=Last device update
+
+CMD-nlspwralarm-SETCMD-NAME=Select Command Action
+CMD-nlspwralarm-UPDATE-NAME=Update Status
+
+ND-yosiren-NAME=YoLink Siren
+ND-yosiren-ICON=Output
+ST-nlssiren-ST-NAME=Siren State
+ST-nlssiren-GV0-NAME=Siren State (Legacy)
+ST-nlssiren-GV1-NAME=Siren Duration
+ST-nlssiren-GV2-NAME=Supply State
+ST-nlssiren-GV3-NAME=Sound Level
+ST-nlssiren-GV20-NAME=Connection State
+ST-nlssiren-GV30-NAME=Online State
+ST-nlssiren-TIME-NAME=Last device update
+CMD-nlssiren-SIRENCTRL-NAME=Set Control
+CMD-nlssiren-UPDATE-NAME=Update Status
+
+soundlevel-0=Off
+soundlevel-1=Low (100dB)
+soundlevel-2=Mid (104dB)
+soundlevel-3=High (110dB)
+soundlevel-98=No Support
+soundlevel-99=Unknown
+
+ND-yosmremote-NAME=YoLink Smart Remoter
+ND-yosmremote-ICON=Output
+ND-yosmremoteF-NAME=YoLink Smart Remoter
+ND-yosmremoteF-ICON=Output
+ST-nlssmremote-ST-NAME=Remote Type
+ST-nlssmremote-GV3-NAME=Battery Level
+ST-nlssmremote-GV20-NAME=Connection State
+ST-nlssmremote-GV30-NAME=Online State
+ST-nlssmremote-CLITEMP-NAME=Sensor Temperature
+CMD-nlssmremote-NAME=Update Status
+
+
+ND-smremotekey-NAME=YoLink Smart Remoter
+ND-smremotekey-ICON=Output
+ST-nlssmkey-ST-NAME=Last Command
+ST-nlssmkey-GV1-NAME=Short Press Command Type
+ST-nlssmkey-GV2-NAME=Long Press Type
+ST-nlssmkey-TIME-NAME=Last key press
+CMD-nlssmkey-KEYPRESS-NAME=Short Press Command Type
+CMD-nlssmkey-KEYLPRESS-NAME=Long Press Command Type
+
+ND-smremotekeydual-NAME=YoLink Smart Remoter
+ND-smremotekeydual-ICON=Output
+ST-nlssmkeydual-ST-NAME=Last Command
+ST-nlssmkeydual-GV1-NAME=Short Press Command Type
+ST-nlssmkeydual-GV2-NAME=Long Press Command Type
+ST-nlssmkeydual-TIME-NAME=Last key press
+CMD-nlssmkeydual-KEYPRESS-NAME=Short Press Command
+CMD-nlssmkeydual-KEYLPRESS-NAME=Long Press Command
+
+ND-smremotekeysingle-NAME=YoLink Smart Remoter
+ND-smremotekeysingle-ICON=Output
+ST-nlssmkeysingle-ST-NAME=Last Command
+ST-nlssmkeysingle-GV1-NAME=Press Command
+ST-nlssmkeysingle-TIME-NAME=Last key press
+CMD-nlssmkeysingle-PRESSCMD-NAME=Press Command
+CMD-nlssmkey-NAME=Update Status
+
+
+ND-yowatermeterOnly-NAME=YoLink Water Meter
+ND-yowatermeterOnly-ICON=Irrigation
+ND-yowatermeterOnlyF-NAME=YoLink Water Meter 
+ND-yowatermeterOnlyF-ICON=Irrigation
+ND-yowatermeterCtrl-NAME=YoLink Water Meter Controller
+ND-yowatermeterCtrl-ICON=Irrigation
+
+
+ND-yowatermeterMulti-NAME=YoLink Water Meter Multi Controller
+ND-yowatermeterMulti-ICON=Irrigation
+ND-yowatermeterSub-NAME=YoLink Water Meter Sub Controller
+ND-yowatermeterSub-ICON=Irrigation
+ND-yowatermeterSubL-NAME=YoLink Water Meter Sub Controller
+ND-yowatermeterSubL-ICON=Irrigation
+ND-yowatermeterSubG-NAME=YoLink Water Meter Sub Controller
+ND-yowatermeterSubG-ICON=Irrigation
+
+
+ST-nlswatermeter-ST-NAME=Water Running
+ST-nlswatermeter-GV0-NAME=Valve State
+ST-nlswatermeter-GV1-NAME=Water Meter Total
+ST-nlswatermeter-GV10-NAME=Water Meter Day Use
+ST-nlswatermeter-GV2-NAME=Water Meter Recent Use
+ST-nlswatermeter-GV3-NAME=Water Meter Recent Duration
+ST-nlswatermeter-GV5-NAME=Leak Alarm
+ST-nlswatermeter-GV6-NAME=Amount Overrun Alarm
+ST-nlswatermeter-GV7-NAME=Duration Overrun Alarm
+ST-nlswatermeter-GV8-NAME=Nbr Times Overrun 24H Alarm
+ST-nlswatermeter-GV9-NAME=Reminder Alarm
+ST-nlswatermeter-GV11-NAME=Open Reminder Alarm
+ST-nlswatermeter-GV12-NAME=Valve Error Alarm
+ST-nlswatermeter-GV13-NAME=High Temp Alarm
+ST-nlswatermeter-GV14-NAME=Low Temp Alarm
+ST-nlswatermeter-GV16-NAME=Overrun time Limit
+ST-nlswatermeter-GV20-NAME=Connection State
+ST-nlswatermeter-GV22-NAME=Overrun Amount 24H Limit
+ST-nlswatermeter-GV23-NAME=Overrun Duration Once Limit
+ST-nlswatermeter-GV24-NAME=Overrun Count 24H Limit 
+
+ST-nlswatermeter-GV25-NAME=Leak Auto Close
+ST-nlswatermeter-GV26-NAME=Overrun Amount Auto Close
+ST-nlswatermeter-GV27-NAME=Overrun Duration Auto Close
+ST-nlswatermeter-GV28-NAME=Overrun Times Auto Close
+
+ST-nlswatermeter-GV30-NAME=Online State
+ST-nlswatermeter-BATLVL-NAME=Battery Level
+ST-nlswatermeter-CLITEMP-NAME=Water Temperature
+ST-nlswatermeter-TIME-NAME=Last device update
+
+CMDP-LLIMIT-NAME=Leak Limit
+CMDP-LOFF-NAME=Leak Auto Off
+CMDP-ORLIMIT-NAME=Overrun Limit
+CMDP-OROFF-NAME=Overrun Auto Off
+CMDP-ORTLIMIT-NAME=Overrun Time Limit
+CMDP-ORTOFF-NAME=Overrun Time Auto Off
+
+
+
+CMD-nlswatermeter-VOPEN-NAME=Open Valve
+CMD-nlswatermeter-VCLOSE-NAME=Close Valve
+CMD-nlswatermeter-SETATTRIB-NAME=Set Parameters
+CMD-nlswatermeter-UPDATE-NAME=Update Node
+
+ND-yowaterdept-NAME=YoLink Water Level Sensor
+ND-yowaterdept-ICON=Irrigation
+ST-nlswaterdept-NAME=Nodeserver Status
+ST-nlswaterdept-ST-NAME=Water Level (0-1000)
+ST-nlswaterdept-GV0-NAME=Water Level (Legacy)
+ST-nlswaterdept-GV1-NAME=Low water Level Alarm setting
+ST-nlswaterdept-GV2-NAME=High water Level Alarm setting
+ST-nlswaterdept-GV3-NAME=Low Water Level
+ST-nlswaterdept-GV4-NAME=High Water Level
+ST-nlswaterdept-GV5-NAME=Sensor Error
+ST-nlswaterdept-GV20-NAME=Connection State
+ST-nlswaterdept-GV30-NAME=Online State
+ST-nlswaterdept-BATLVL-NAME=Battery Level
+ST-nlswaterdept-TIME-NAME=Last Data Update
+CMD-nlswaterdept-SETATTR-NAME=Set water level alarms
+CMD-nlswaterdept-NAME=Update Status
+CMDP-waterLowAlarm-NAME=Low Water Alarm (0-1000)
+CMDP-waterHighAlarm-NAME=High Water Alarm (0-1000)
+
+
+ND-yosprinklerv2-NAME=YoLink Smart Sprinkler V2
+ND-yosprinklerv2-ICON=Irrigation
+ST-nlssprinkler-NAME=Nodeserver Status
+ST-nlssprinkler-ST-NAME=Current State
+ST-nlssprinkler-GV1-NAME=Current No Water Alarm
+
+ST-nlssprinkler-GV5-NAME=Latest Operation
+ST-nlssprinkler-GV7-NAME=Latest Water Method
+ST-nlssprinkler-GV8-NAME=Latest Water Amount target
+ST-nlssprinkler-GV9-NAME=Latest Water Alarm
+ST-nlssprinkler-GV10-NAME=Time for Latest operation Update
+ST-nlssprinkler-GV12-NAME=Time Delay
+
+
+
+ST-nlssprinkler-GV20-NAME=Connection State
+ST-nlssprinkler-GV30-NAME=Online State
+ST-nlssprinkler-BATLVL-NAME=Battery Level
+ST-nlssprinkler-TIME-NAME=Last Data Update
+ST-nlssprinkler-CLITEMP-NAME=Sensor Temperature
+
+CMD-nlssprinkler-UPDATE-NAME=Update Status
+CMD-nlssprinkler-STARTSTOP-NAME=Start/Stop 
+CMD-nlssprinkler-WATTRIB-NAME=Set watering Attributes
+CMD-nlssprinkler-WDELAY-NAME=Set water delay
+CMDP-startstop-NAME=Start/Stop Watering
+CMDP-watermode-NAME=Water Mode
+CMDP-wmethod-NAME=Watering Measure Method
+CMDP-wamount-NAME=Set Amount
+
+LED-0=Off
+LED-1=On
+LED-99=Unknown
+
+beeping-0=No Beep
+beeping-1=Beeping
+beeping-99=Unknown
+
+leakOpMode-0=Detect Water
+leakOpMode-1=Detect No Water
+leakOpMode-99=Unknown
+
+sensitivity-0=Low
+sensitivity-1=High
+sensitivity-99=Unknown
+
+moveAlert-0=Not Moved
+moveAlert-1=Sensor Moved
+moveAlert-99=Unknown
+
+freezeAlert-0=No Alert
+freezeAlert-1=Freeze Alert
+freezeAlert-99=Unknown
+
+sensorError-0=Normal
+sensorError-1=Sensor Error Detected
+sensorError-99=Unknown
+
+reminder-0=Normal
+remained-1=Active Reminder
+remained-99=Unknown
+
+
+running-0=Stop
+running-1=Start
+sprinklerstate-0=Manual
+sprinklerstate-1=Schedule
+sprinklermethod-0=Water Volume
+sprinklermethod-1=Time
+
+waterrun-0=Stopped
+waterrun-1=Water Running
+waterrun-99=Unknown
+
+watermode-1=Scheduled
+watermode-0=Manual
+watermode-99=Unknown
+
+watermethod-0=Water Volume
+watermethod-1=Time
+watermethod-99=Unknown
+
+nowateralarm-0=Normal (No alarm)
+nowateralarm-1=Alarm - No Water Detected
+nowateralarm-99=Unknown
+
+runningmode-0=Fixed Water Amount
+runningmode-1=Fixed Run Time
+runningmode-99=Unknown
+
+wlstate-99=Unknown
+wlstate-98=Updating (may take up to 1 hour)
+
+nosupport-0=No Support
+nosupport-98=No Support
+nosupport-99=Unknown
+
+enable-0=Disabled
+enable-1=Enabled
+enable-99=Unknown
+
+ready-0=Initializing
+ready-1=Ready
+
+outport-0=port1
+outport-1=port2
+outport-2=port3
+outport-3=port4
+
+schactive-0=Disabled
+schactive-1=Active
+schactive-2=Not Defined
+schactive-98=No Schedules
+schactive-99=Unknown
+
+pwrmode-0=Ext Supply
+pwrmode-1=Battery
+pwrmode-99=Unknown
+
+suspended-0=Online
+suspended-1=Suspended
+suspended-2=Offline
+suspended-3=Online - Local
+suspended-4=Suspended - Local
+suspended-5=Offline - Local
+suspended-6=Low Power Mode - Control Not Possible
+suspended-99=Unknown
+
+
+
+deviceAlert-0=Normal
+deviceAlert-1=Alert
+deviceAlert-99=Unknown
+
+SmokeAlert-0=Normal
+SmokeAlert-1=Smoke Alert
+SmokeAlert-98=No Support
+SmokeAlert-99=Unknown
+
+COAlert-0=Normal
+COAlert-1=CO Alert
+COAlert-98=No Support
+COAlert-99=Unknown
+
+TempAlert-0=Normal
+TempAlert-1=High Temp Alert
+TempAlert-98=No Support
+TempAlert-99=Unknown
+
+BatteryAlert-0=Normal
+BatteryAlert-1=Low Battery Alert
+BatteryAlert-98=No Support
+BatteryAlert-99=Unknown
+
+SelfcheckState-0=Not recommended
+SelfcheckState-1=Recommended
+SelfcheckState-99=Unknown
+
+
+cmdsetting-0=DON/DOF
+cmdsetting-1=DON Only
+cmdsetting-2=DOF Only
+cmdsetting-3=None
+
+sirenstate-0=Normal
+sirenstate-1=Alert
+sirenstate-2=Off
+sirenstate-99=Unknown 
+
+sirenbatlvl-0=Low 
+sirenbatlvl-1=Medium Low
+sirenbatlvl-2=Medium
+sirenbatlvl-3=Medium High
+sirenbatlvl-4=High
+sirenbatlvl-98=External Power
+sirenbatlvl-99=Unknown
+
+sirenctrl-0=Normal
+sirenctrl-1=Alert
+
+pfamute-0=Not muted
+pfamute-1=Muted
+pfamute-99=Unknown
+powerstate-0=TBD-Unknown?
+powerstate-1=Supplying?
+powerstate-2=Charging  
+powerstate-3=Full
+powerstate-99=Unknown 
+
+
+poweralert-0=No Alert (normal)
+poweralert-1=Alert
+poweralert-2=Unit Off
+poweralert-99=Unknown
+
+alertstate-0=No Alert
+alertstate-1=Alert Active
+alertstate-99=Unknown
+
+powered-0=No Power
+powered-1=Unit powered
+powered-99=Unknown
+
+bool-0=False
+bool-1=True 
+bool-99=Unknown
+
+waterunit-0=Gal
+waterunit-1=Cubic feet
+waterunit-2=Cubic Meter
+waterunit-3=Liter
+waterunit-99=Undefined
+
+keyscenedef-0=OFF (DOF) 
+keyscenedef-1=ON (DON)
+keyscenedef-2=Fast OFF (DFOF)
+keyscenedef-3=Fast ON (DFON)
+keyscenedef-4=TOGGLE DON/DOF (DON/DOF)
+keyscenedef-5=TOGGLE DFON/DFOF (DFON/DFOF)
+keyscenedef-99=Unknown
+
+keyscene-0=Send OFF (DOF)
+keyscene-1=Send ON (DON)
+keyscene-2=Send FAST OFF (DFOF)
+keyscene-3=Send FAST ON (DFON)
+keyscene-4=Toggle State (DON/DOF)
+keyscene-5=Toggle Fast State (DFON/DFOF)
+
+remotetype-0=Single Press
+remotetype-1=Dual Press
+remotetype-99=Unknown
+
+keycmd-0=OFF
+keycmd-1=ON
+keycmd-2=FAST OFF
+keycmd-3=FAST ON
+keycmd-99=Unknown
+
+
+keypress-0=Key1 - Short
+keypress-1=Key2 - Short
+keypress-2=Key3 - Short
+keypress-3=Key4 - Short
+keypress-8=Key1 - Long
+keypress-9=Key2 - Long 
+keypress-10=Key3 - Long
+keypress-11=Key4 - Long
+keypress-99=Unknown
+
+
+keynumber-0=Key1
+keynumber-1=Key2
+keynumber-2=Key3
+keynumber-3=Key4
+keynumber-99=Unknown
+
+presstype-0=Normal
+presstype-8=Long press
+presstype-99=Unknown
+
+ircmdstatus-0=Ready
+ircmdstatus-1=Success
+ircmdstatus-2=Fail
+ircmdstatus-99=Unknown
+
+cmdstatus-0=Fail
+cmdstatus-1=Success
+cmdstatus-2=TX Key Wrong
+cmdstatus-99=Unknown
+
+lockstate-0=Unlocked
+lockstate-1=Locked
+lockstate-99=Unknown
+
+lock-0=Unlocked
+lock-1=Locked
+
+locksource-0=Password
+locksource-1=Manual
+locksource-2=Key
+locksource-3=Auto Lock
+locksource-4=Fingerprint
+locksource-99=Unknown
+
+lockaction-0=No Action
+lockaction-1=Lock
+lockaction-2=Unlock
+lockaction-3=Lock Failed
+lockaction-4=Unlock Failed
+lockaction-99=Unknown
+
+doorbell-0=Idle
+doorbell-1=Activated
+doorbell-99=Unknown
+
+tempunit-0=Celsius
+tempunit-1=Fahrenheit
+tempunit-2=Kelvin
+
+error-0=Unknown
+error-99=Unknown/Not reported
+sphmute-0=Muted
+sphmute-1=Unmuted
+sphmute-99=Unknown
+
+
+sphbeepen-0=Disabled
+sphbeepen-1=Enabled
+sphbeepen-99=Unknown
+
+sphtones-0=No Tone
+sphtones-1=Emergency
+sphtones-2=Alert
+sphtones-3=Warning 
+sphtones-4=Tip
+
+vibration-0=No Vibration
+vibration-1=Vibration
+vibration-99=Unknown
+
+status-0=Not Connected
+status-1=Connected
+
+connect-0=Off-line
+connect-1=On-line
+
+swstate-0=Off
+swstate-1=On
+swstate-99=Unknown
+
+swctrl-0=Off
+swctrl-1=On
+swctrl-2=Toggle
+swctrl-3=Fast Off
+swctrl-4=Fast On
+swctrl-5=Set Delays
+
+batlevel-0=Low 
+batlevel-1=Medium Low
+batlevel-2=Medium
+batlevel-3=Medium High
+batlevel-4=High
+batlevel-98=Ext Power
+batlevel-99=Unknown
+
+alarm-0=No Alarm (normal)
+alarm-1=Alarm
+alarm-98=No Support 
+alarm-99=Unknown 
+
+alert-0=Normal
+alert-1=Alert
+alert-99=Unknown 
+
+online-0=Offline
+online-1=Online
+
+doorstate-0=Closed
+doorstate-1=Open
+doorstate-99=Unknown 
+
+motionstate-0=No Motion
+motionstate-1=Motion
+motionstate-99=Unknown 
+
+vibrastate-0=No Motion
+vibrastate-1=Motion
+vibrastate-99=Unknown 
+
+waterstate-0=Dry
+waterstate-1=Wet
+waterstate-99=Unknown 
+
+manstate-0=Closed
+manstate-1=Open
+manstate-99=Unknown 
+
+manctrl-0=Close
+manctrl-1=Open
+manctrl-5=Set Delays
+
+
+usbstate-0=Disabled
+usbstate-1=Enabled
+usbstate-99=Unknown 
+
+usbctrl-0=Disable
+usbctrl-1=Enable
+usbctrl-2=Toggle
+
+portlist-0=Outlet 1
+portlist-1=Outlet 2
+portlist-2=Outlet 3
+portlist-3=Outlet 4
+portlist-4=Outlet 5
+portlist-5=Outlet 6
+portlist-6=Outlet 7
+portlist-7=Outlet 8
+portlist-99=Unknown
+
+notdefined-98=Not used
+notdefined-99=Unknown
+
+schindexM-0=Schedule 0
+schindexM-1=Schedule 1
+schindexM-2=Schedule 2
+schindexM-3=Schedule 3
+schindexM-4=Schedule 4
+schindexM-5=Schedule 5
+schindexM-6=Schedule 6
+schindexM-7=Schedule 7
+schindexM-8=Schedule 8
+schindexM-9=Schedule 9
+schindexM-99=No Schedules
+
+
+schindexS-0=Schedule 0
+schindexS-1=Schedule 1
+schindexS-2=Schedule 2
+schindexS-3=Schedule 3
+schindexS-4=Schedule 4
+schindexS-5=Schedule 5
+schindexS-99=No Schedules
+
+
+bindays-0=Not defined
+bindays-1=Sxxxxxx
+bindays-2=xMxxxxx
+bindays-3=SMxxxxx
+bindays-4=xxTxxxx
+bindays-5=SxTxxxx
+bindays-6=xMTxxxx
+bindays-7=SMTxxxx
+bindays-8=xxxWxxx
+bindays-9=SxxWxxx
+bindays-10=xMxWxxx
+bindays-11=SMxWxxx
+bindays-12=xxTWxxx
+bindays-13=SxTWxxx
+bindays-14=xMTWxxx
+bindays-15=SMTWxxx
+bindays-16=xxxxTxx
+bindays-17=SxxxTxx
+bindays-18=xMxxTxx
+bindays-19=SMxxTxx
+bindays-20=xxTxTxx
+bindays-21=SxTxTxx
+bindays-22=xMTxTxx
+bindays-23=SMTxTxx
+bindays-24=xxxWTxx
+bindays-25=SxxWTxx
+bindays-26=xMxWTxx
+bindays-27=SMxWTxx
+bindays-28=xxTWTxx
+bindays-29=SxTWTxx
+bindays-30=xMTWTxx
+bindays-31=SMTWTxx
+bindays-32=xxxxxFx
+bindays-33=SxxxxFx
+bindays-34=xMxxxFx
+bindays-35=SMxxxFx
+bindays-36=xxTxxFx
+bindays-37=SxTxxFx
+bindays-38=xMTxxFx
+bindays-39=SMTxxFx
+bindays-40=xxxWxFx
+bindays-41=SxxWxFx
+bindays-42=xMxWxFx
+bindays-43=SMxWxFx
+bindays-44=xxTWxFx
+bindays-45=SxTWxFx
+bindays-46=xMTWxFx
+bindays-47=SMTWxFx
+bindays-48=xxxxTFx
+bindays-49=SxxxTFx
+bindays-50=xMxxTFx
+bindays-51=SMxxTFx
+bindays-52=xxTxTFx
+bindays-53=SxTxTFx
+bindays-54=xMTxTFx
+bindays-55=SMTxTFx
+bindays-56=xxxWTFx
+bindays-57=SxxWTFx
+bindays-58=xMxWTFx
+bindays-59=SMxWTFx
+bindays-60=xxTWTFx
+bindays-61=SxTWTFx
+bindays-62=xMTWTFx
+bindays-63=SMTWTFx
+bindays-64=xxxxxxS
+bindays-65=SxxxxxS
+bindays-66=xMxxxxS
+bindays-67=SMxxxxS
+bindays-68=xxTxxxS
+bindays-69=SxTxxxS
+bindays-70=xMTxxxS
+bindays-71=SMTxxxS
+bindays-72=xxxWxxS
+bindays-73=SxxWxxS
+bindays-74=xMxWxxS
+bindays-75=SMxWxxS
+bindays-76=xxTWxxS
+bindays-77=SxTWxxS
+bindays-78=xMTWxxS
+bindays-79=SMTWxxS
+bindays-80=xxxxTxS
+bindays-81=SxxxTxS
+bindays-82=xMxxTxS
+bindays-83=SMxxTxS
+bindays-84=xxTxTxS
+bindays-85=SxTxTxS
+bindays-86=xMTxTxS
+bindays-87=SMTxTxS
+bindays-88=xxxWTxS
+bindays-89=SxxWTxS
+bindays-90=xMxWTxS
+bindays-91=SMxWTxS
+bindays-92=xxTWTxS
+bindays-93=SxTWTxS
+bindays-94=xMTWTxS
+bindays-95=SMTWTxS
+bindays-96=xxxxxFS
+bindays-97=SxxxxFS
+bindays-98=xMxxxFS
+bindays-99=SMxxxFS
+bindays-100=xxTxxFS
+bindays-101=SxTxxFS
+bindays-102=xMTxxFS
+bindays-103=SMTxxFS
+bindays-104=xxxWxFS
+bindays-105=SxxWxFS
+bindays-106=xMxWxFS
+bindays-107=SMxWxFS
+bindays-108=xxTWxFS
+bindays-109=SxTWxFS
+bindays-110=xMTWxFS
+bindays-111=SMTWxFS
+bindays-112=xxxxTFS
+bindays-113=SxxxTFS
+bindays-114=xMxxTFS
+bindays-115=SMxxTFS
+bindays-116=xxTxTFS
+bindays-117=SxTxTFS
+bindays-118=xMTxTFS
+bindays-119=SMTxTFS
+bindays-120=xxxWTFS
+bindays-121=SxxWTFS
+bindays-122=xMxWTFS
+bindays-123=SMxWTFS
+bindays-124=xxTWTFS
+bindays-125=SxTWTFS
+bindays-126=xMTWTFS
+bindays-127=SMTWTFS
+
+
+
+
+sphtts-0=Mes1
+sphtts-1=Mess2
+sphtts-2=Messa3
+sphtts-3=Messag4
+sphtts-4=Message 5
+sphtts-5=mes77
+
+
+ND-yothermostat-NAME=YoLink Thermostat (C)
+ND-yothermostat-ICON=Thermostat
+ND-yothermostatf-NAME=YoLink Thermostat (F)
+ND-yothermostatf-ICON=Thermostat
+ND-yothermprop-NAME=Thermostat Properties (C)
+ND-yothermprop-ICON=Thermostat
+ND-yothermpropf-NAME=Thermostat Properties (F)
+ND-yothermpropf-ICON=Thermostat
+
+ST-nlsthermostat-ST-NAME=Temperature
+ST-nlsthermostat-CLIHCS-NAME=Running State
+ST-nlsthermostat-CLIHUM-NAME=Humidity
+ST-nlsthermostat-CLISPH-NAME=Heat Setpoint
+ST-nlsthermostat-CLISPC-NAME=Cool Setpoint
+ST-nlsthermostat-CLIMD-NAME=Mode
+ST-nlsthermostat-CLIFS-NAME=Fan Setting
+ST-nlsthermostat-CLISMD-NAME=Schedule Mode
+ST-nlsthermostat-GV0-NAME=Sensor 1 Temp
+ST-nlsthermostat-GV1-NAME=Sensor 2 Temp
+ST-nlsthermostat-GV2-NAME=Aux Heat Running
+ST-nlsthermostat-GV3-NAME=Stage 2 Running
+ST-nlsthermostat-CLIEMD-NAME=ECO Mode
+ST-nlsthermostat-GV5-NAME=Demand Response Running
+ST-nlsthermostat-GV18-NAME=ECO Low Temp
+ST-nlsthermostat-GV19-NAME=ECO High Temp
+ST-nlsthermostat-GV20-NAME=Connection State
+ST-nlsthermostat-GV30-NAME=Online State
+ST-nlsthermostat-TIME-NAME=Last Update
+
+ST-nlsthermostatprop-GV6-NAME=Min Runtime
+ST-nlsthermostatprop-GV7-NAME=Cool Limit
+ST-nlsthermostatprop-GV8-NAME=Heat Limit
+ST-nlsthermostatprop-GV9-NAME=Mute
+ST-nlsthermostatprop-GV10-NAME=Menu Lock
+ST-nlsthermostatprop-GV11-NAME=Aux Standby
+ST-nlsthermostatprop-GV12-NAME=Aux Max Span
+ST-nlsthermostatprop-GV13-NAME=Aux Threshold
+ST-nlsthermostatprop-GV14-NAME=Stage2 Standby
+ST-nlsthermostatprop-GV15-NAME=Stage2 Max Span
+ST-nlsthermostatprop-GV16-NAME=Stage2 Threshold
+ST-nlsthermostatprop-GV17-NAME=Master Source
+
+
+CMD-nlsthermostat-UPDATE-NAME=Update
+CMD-nlsthermostat-SETHEATTEMP-NAME=Set Heat Setpoint
+CMD-nlsthermostat-SETCOOLTEMP-NAME=Set Cool Setpoint
+CMD-nlsthermostat-SETMODE-NAME=Set Mode
+CMD-nlsthermostat-SETFAN-NAME=Set Fan
+CMD-nlsthermostat-SETSCHE-NAME=Set Schedule Mode
+CMD-nlsthermostat-SETECO-NAME=Set ECO Mode
+CMDP-ecomodeth-NAME=ECO Mode (Off/On)
+CMDP-ecoLowth-NAME=ECO Low
+CMDP-ecoHighth-NAME=ECO High
+
+CMD-nlsthermostatprop-UPDATE-NAME=Update
+CMD-nlsthermostatprop-SETMINRUNTIME-NAME=Set Min Runtime
+CMD-nlsthermostatprop-SETCOOLLIMIT-NAME=Set Cool Limit
+CMD-nlsthermostatprop-SETHEATLIMIT-NAME=Set Heat Limit
+CMD-nlsthermostatprop-SETMUTE-NAME=Set Mute
+CMD-nlsthermostatprop-SETMENULOCK-NAME=Set Menu Lock
+CMD-nlsthermostatprop-SETMASTER-NAME=Set Master Source
+
+
+tstatmode-0=Off
+tstatmode-1=Heat
+tstatmode-2=Cool
+tstatmode-3=Auto
+tstatmode-99=Unknown
+
+tstatfan-0=Auto
+tstatfan-1=On
+tstatfan-99=Unknown
+
+tstatsche-0=Run
+tstatsche-1=Hold
+tstatsche-99=Unknown
+
+tstathcs-0=Idle
+tstathcs-1=Heating
+tstathcs-2=Cooling
+tstathcs-99=Unknown
+
+
+auxheat-0=No
+auxheat-1=Yes
+auxheat-99=Unknown
+
+stage2-0=No
+stage2-1=Yes
+stage2-99=Unknown
+
+ecomode-0=Off
+ecomode-1=On
+ecomode-99=Unknown
+
+drrunning-0=No
+drrunning-1=Yes
+drrunning-99=Unknown
+
+mutesetting-0=Off
+mutesetting-1=On
+mutesetting-99=Unknown
+
+menulock-0=Unlocked
+menulock-1=Locked
+menulock-99=Unknown
+
+mastersrc-0=Local
+mastersrc-1=Sensor 1
+mastersrc-2=Sensor 2
+mastersrc-99=Unknown
