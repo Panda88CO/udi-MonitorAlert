@@ -1,6 +1,8 @@
 import sys
 import os
 import json
+import time
+import ipaddress
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 from udi_interface import Interface, Node, LOGGER, Custom
@@ -49,6 +51,8 @@ def event_time_to_ms(event: dict) -> int | None:
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
 VERSION = os.getenv("UDI_MONITOR_VERSION", "0.0.2")
+DEFAULT_REST_REFRESH_ATTEMPTS = 3
+DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 
 
 def current_time_ms() -> int:
@@ -60,6 +64,51 @@ def _coerce_int(value):
         return int(float(value))
     except (TypeError, ValueError):
         return None
+
+
+def _coerce_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_isy_ip(raw_value):
+    """Normalize custom isy_ip input to an IPv4 host string.
+
+    Expected input is plain IPv4 (for example 192.168.1.240). If a URL or
+    host:port is provided, extract the host portion and validate it as IPv4.
+    """
+    if raw_value is None:
+        return None
+
+    raw_text = str(raw_value).strip()
+    if not raw_text:
+        return None
+
+    candidate = raw_text
+    if "://" in raw_text or "/" in raw_text or ":" in raw_text:
+        parsed = urlparse(raw_text if "://" in raw_text else f"//{raw_text}")
+        if parsed.hostname:
+            candidate = parsed.hostname
+        else:
+            candidate = raw_text.split("/", 1)[0].split(":", 1)[0]
+        LOGGER.warning(
+            "customParams isy_ip should be plain IPv4 host; normalized input to host=%s",
+            candidate,
+        )
+
+    try:
+        ip_obj = ipaddress.ip_address(candidate)
+    except ValueError:
+        LOGGER.warning("customParams isy_ip is invalid IPv4 input: %s", raw_text)
+        return None
+
+    if ip_obj.version != 4:
+        LOGGER.warning("customParams isy_ip must be IPv4: %s", raw_text)
+        return None
+
+    return str(ip_obj)
 
 
 def _truncate_file(path):
@@ -156,25 +205,6 @@ NODE_DEFINITIONS = {
     }
 }
 
-DEFAULT_NUCORE_CONFIG = {
-    "provider_path": "iox.IoXWrapper",
-    "provider_init": {
-        "base_url": "https://192.168.1.240",
-        "username": os.getenv("NUCORE_USERNAME", "christian.olgaard@gmail.com"),
-        "password": os.getenv("NUCORE_PASSWORD", "coe123COE"),
-        "json_output": True,
-        "prompt_format_type": "shared-features",
-    },
-}
-
-DEFAULT_IOX_CONFIG = {
-    "host": "192.168.1.204",
-    "port": "443",
-    "secure": True,
-    "username": os.getenv("IOX_USERNAME", "christian.olgaard@gmail.com"),
-    "password": os.getenv("IOX_PASSWORD", "coe123COE"),
-}
-
 # =========================================================================
 # NODE IMPLEMENTATIONS
 # =========================================================================
@@ -191,6 +221,18 @@ class Controller(Node):
         self.fallback_started = False
         self.control_meta_index = {}
         self.policy_stats = {"audited": 0, "skipped": 0}
+        self.active_node_map = {}
+        self._started = False
+        self._metadata_refresh_in_progress = False
+        self._last_connection_fingerprint = None
+        self._rest_refresh_attempts = max(
+            1,
+            _coerce_int(os.getenv("UDI_REST_REFRESH_ATTEMPTS")) or DEFAULT_REST_REFRESH_ATTEMPTS,
+        )
+        self._rest_refresh_backoff_s = max(
+            0.1,
+            _coerce_float(os.getenv("UDI_REST_REFRESH_BACKOFF_S")) or DEFAULT_REST_REFRESH_BACKOFF_S,
+        )
         # Modes: off, audit, enforce. Audit is default to avoid accidental data loss.
         self.timestamp_policy_mode = str(os.getenv("UDI_TIMESTAMP_POLICY_MODE", "audit")).strip().lower()
         self.custom_params = Custom(self.poly, "customparams")
@@ -198,6 +240,13 @@ class Controller(Node):
         self.poly.subscribe(self.poly.START, self.start, self.address)
         self.poly.subscribe(self.poly.STOP, self.stop)
         self.poly.subscribe(self.poly.CUSTOMPARAMS, self.handle_custom_params)
+        LOGGER.debug(
+            "Controller initialized: address=%s name=%s rest_attempts=%s rest_backoff=%.2fs",
+            self.address,
+            self.name,
+            self._rest_refresh_attempts,
+            self._rest_refresh_backoff_s,
+        )
 
     def handle_custom_params(self, params):
         if isinstance(params, dict):
@@ -205,15 +254,49 @@ class Controller(Node):
         else:
             self.custom_params = {}
 
-        has_eisy_ip = bool(self.custom_params.get("eISY_IP") or self.custom_params.get("EISY_IP"))
-        has_username = bool(self.custom_params.get("username") or self.custom_params.get("USERNAME"))
-        has_password = bool(self.custom_params.get("password") or self.custom_params.get("PASSWORD"))
+        has_isy_ip = bool(
+            self.custom_params.get("isy_ip")
+            or self.custom_params.get("ISY_IP")
+            or self.custom_params.get("eISY_IP")
+            or self.custom_params.get("EISY_IP")
+        )
+        has_username = bool(
+            self.custom_params.get("isy_user")
+            or self.custom_params.get("ISY_USER")
+            or self.custom_params.get("username")
+            or self.custom_params.get("USERNAME")
+        )
+        has_password = bool(
+            self.custom_params.get("isy_password")
+            or self.custom_params.get("ISY_PASSWORD")
+            or self.custom_params.get("password")
+            or self.custom_params.get("PASSWORD")
+        )
         LOGGER.info(
-            "customParams updated: eISY_IP=%s username=%s password=%s",
-            has_eisy_ip,
+            "customParams updated: isy_ip=%s isy_user=%s isy_password=%s",
+            has_isy_ip,
             has_username,
             has_password,
         )
+        LOGGER.debug("customParams keys seen: %s", sorted(self.custom_params.keys()))
+
+        if not self._started:
+            return
+
+        cfg = self._resolve_iox_connection()
+        fingerprint = (
+            str(cfg.get("host") or ""),
+            str(cfg.get("port") or ""),
+            bool(cfg.get("secure")),
+            str(cfg.get("username") or ""),
+            bool(cfg.get("password")),
+        )
+        if fingerprint == self._last_connection_fingerprint:
+            return
+
+        self._last_connection_fingerprint = fingerprint
+        LOGGER.info("customParams changed connection settings; scheduling metadata refresh.")
+        self._run_metadata_refresh_cycle(reason="custom_params")
 
     def _get_custom_params(self):
         if isinstance(self.custom_params, dict) and self.custom_params:
@@ -239,17 +322,30 @@ class Controller(Node):
         )
 
     def start(self):
+        LOGGER.info("Controller startup beginning: address=%s version=%s", self.address, VERSION)
         custom_data = self.poly.config.get("customData", {})
         if isinstance(custom_data, dict):
             self.event_log_file = custom_data.get("eventLogFile", self.event_log_file)
+            LOGGER.debug("Startup customData keys: %s", sorted(custom_data.keys()))
+        LOGGER.debug("Startup customParams keys: %s", sorted(self._get_custom_params().keys()))
 
         cleanup_startup_files(self.event_log_file)
 
         LOGGER.info("Initializing SQLite database...")
         database.init_db()
-        self._refresh_metadata_from_rest_status()
+        LOGGER.debug("SQLite initialized; beginning metadata refresh cycle for startup")
+        self._run_metadata_refresh_cycle(reason="startup")
         self.control_meta_index = database.load_control_metadata_index()
         LOGGER.info("Loaded control metadata rows: %s", len(self.control_meta_index))
+        cfg = self._resolve_iox_connection()
+        self._last_connection_fingerprint = (
+            str(cfg.get("host") or ""),
+            str(cfg.get("port") or ""),
+            bool(cfg.get("secure")),
+            str(cfg.get("username") or ""),
+            bool(cfg.get("password")),
+        )
+        self._started = True
 
         source = self._get_event_source()
         LOGGER.info(f"Event source selected: {source}")
@@ -301,11 +397,113 @@ class Controller(Node):
         )
         return True
 
+    def _validate_value_with_lookup(self, value, control_meta):
+        if not isinstance(control_meta, dict):
+            return None
+
+        value_num = _coerce_float(value)
+        if value_num is None:
+            return None
+
+        allowed_subset = control_meta.get("allowed_subset")
+        if isinstance(allowed_subset, list) and allowed_subset:
+            value_int = _coerce_int(value)
+            candidates = {str(value)}
+            if value_int is not None:
+                candidates.add(str(value_int))
+            if not any(candidate in set(allowed_subset) for candidate in candidates):
+                return False
+
+        min_value = control_meta.get("min_value")
+        if min_value is not None and value_num < float(min_value):
+            return False
+
+        max_value = control_meta.get("max_value")
+        if max_value is not None and value_num > float(max_value):
+            return False
+
+        return True
+
     def _get_event_source(self):
         custom_data = self.poly.config.get("customData", {})
         if isinstance(custom_data, dict):
             return str(custom_data.get("eventSource", "iox")).lower()
         return "iox"
+
+    def _first_non_empty(self, *values):
+        for value in values:
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+        return None
+
+    def _build_active_node_map(self):
+        nodes = getattr(self.poly, "nodes", {})
+        if not isinstance(nodes, dict):
+            LOGGER.debug("Polyglot nodes container is not a dict; skipping active node map build.")
+            return {}
+
+        out = {}
+        for node in nodes.values():
+            address = getattr(node, "address", None)
+            if not address:
+                continue
+            key = str(address).strip()
+            if not key:
+                continue
+            out[key] = {
+                "name": getattr(node, "name", None),
+                "primary": getattr(node, "primary", None),
+            }
+        LOGGER.info("Active Polyglot nodes discovered: count=%s", len(out))
+        LOGGER.debug("Active Polyglot node addresses: %s", sorted(out.keys()))
+        return out
+
+    def _persist_active_node_map(self, active_node_map, source):
+        node_ids = sorted(active_node_map.keys()) if isinstance(active_node_map, dict) else []
+        if not node_ids:
+            LOGGER.info("No active Polyglot nodes available to persist.")
+            return
+        try:
+            applied = database.bulk_upsert_node_activity(
+                node_ids,
+                polyglot_active=True,
+                rest_seen=None,
+                source=source,
+                seen_ms=current_time_ms(),
+            )
+            LOGGER.info("Persisted active node map rows: %s", applied)
+        except Exception as exc:
+            LOGGER.warning("Failed to persist active node map: %s", exc)
+
+    def _run_metadata_refresh_cycle(self, reason):
+        if self._metadata_refresh_in_progress:
+            LOGGER.info("Skipping metadata refresh (%s): refresh already in progress.", reason)
+            return False
+
+        self._metadata_refresh_in_progress = True
+        try:
+            active_map = self._build_active_node_map()
+            self.active_node_map = active_map
+            self._persist_active_node_map(active_map, source=reason)
+            LOGGER.debug(
+                "Starting metadata refresh cycle: reason=%s active_nodes=%s",
+                reason,
+                len(active_map),
+            )
+            refreshed = self._refresh_metadata_with_retry(active_map, reason=reason)
+            self.control_meta_index = database.load_control_metadata_index()
+            LOGGER.info(
+                "Metadata refresh cycle complete: reason=%s refreshed=%s loaded_rows=%s",
+                reason,
+                refreshed,
+                len(self.control_meta_index),
+            )
+            return refreshed
+        finally:
+            self._metadata_refresh_in_progress = False
 
     def _resolve_iox_connection(self):
         custom_data = self.poly.config.get("customData", {})
@@ -314,57 +512,107 @@ class Controller(Node):
         custom_iox_user = custom_data.get("ioxUser") if isinstance(custom_data, dict) else None
         custom_iox_pass = custom_data.get("ioxPassword") if isinstance(custom_data, dict) else None
 
-        custom_eisy_ip = custom_params.get("eISY_IP") or custom_params.get("EISY_IP")
-        custom_username = custom_params.get("username") or custom_params.get("USERNAME")
-        custom_password = custom_params.get("password") or custom_params.get("PASSWORD")
+        custom_eisy_ip = self._first_non_empty(
+            custom_params.get("isy_ip"),
+            custom_params.get("ISY_IP"),
+            custom_params.get("eISY_IP"),
+            custom_params.get("EISY_IP"),
+        )
+        custom_username = self._first_non_empty(
+            custom_params.get("isy_user"),
+            custom_params.get("ISY_USER"),
+            custom_params.get("username"),
+            custom_params.get("USERNAME"),
+        )
+        custom_password = self._first_non_empty(
+            custom_params.get("isy_password"),
+            custom_params.get("ISY_PASSWORD"),
+            custom_params.get("password"),
+            custom_params.get("PASSWORD"),
+        )
 
         custom_iox_host = None
-        custom_iox_port = None
-        custom_iox_secure = None
         if custom_eisy_ip:
-            raw_eisy = str(custom_eisy_ip).strip()
-            parsed = urlparse(raw_eisy if "://" in raw_eisy else f"https://{raw_eisy}")
-            if parsed.hostname:
-                custom_iox_host = parsed.hostname
-                if parsed.port:
-                    custom_iox_port = str(parsed.port)
-                if parsed.scheme:
-                    custom_iox_secure = parsed.scheme.lower() == "https"
-            else:
-                custom_iox_host = raw_eisy
+            custom_iox_host = _normalize_isy_ip(custom_eisy_ip)
 
-        iox_host = (
-            custom_iox_host
-            or self.poly.config.get('isyIp')
-            or iox_cfg.get("host")
-            or iox_cfg.get("ip")
-            or DEFAULT_IOX_CONFIG["host"]
-        )
-        iox_secure = custom_iox_secure if custom_iox_secure is not None else iox_cfg.get("secure", DEFAULT_IOX_CONFIG["secure"])
+        host_source = "default"
+        iox_host = custom_iox_host
+        if iox_host:
+            host_source = "customParams.isy_ip"
+        elif self.poly.config.get('isyIp'):
+            iox_host = self.poly.config.get('isyIp')
+            host_source = "polyglot.isyIp"
+        elif iox_cfg.get("host"):
+            iox_host = iox_cfg.get("host")
+            host_source = "customData.iox.host"
+        elif iox_cfg.get("ip"):
+            iox_host = iox_cfg.get("ip")
+            host_source = "customData.iox.ip"
+        else:
+            iox_host = None
+
+        iox_secure = iox_cfg.get("secure")
         if isinstance(iox_secure, str):
             iox_secure = iox_secure.strip().lower() in ("1", "true", "yes", "on")
+        if iox_secure is None:
+            iox_secure = True
+
         default_port = "443" if iox_secure else "80"
         iox_port = (
-            custom_iox_port
-            or self.poly.config.get('isyPort')
+            self.poly.config.get('isyPort')
             or iox_cfg.get("port")
             or default_port
         )
 
-        iox_user = (
-            custom_username
-            or self.poly.config.get('isyUser')
-            or iox_cfg.get("username")
-            or iox_cfg.get("user")
-            or custom_iox_user
-            or DEFAULT_IOX_CONFIG["username"]
+        user_source = "default"
+        iox_user = custom_username
+        if iox_user:
+            user_source = "customParams.isy_user"
+        elif self.poly.config.get('isyUser'):
+            iox_user = self.poly.config.get('isyUser')
+            user_source = "polyglot.isyUser"
+        elif iox_cfg.get("username"):
+            iox_user = iox_cfg.get("username")
+            user_source = "customData.iox.username"
+        elif iox_cfg.get("user"):
+            iox_user = iox_cfg.get("user")
+            user_source = "customData.iox.user"
+        elif custom_iox_user:
+            iox_user = custom_iox_user
+            user_source = "customData.ioxUser"
+        else:
+            iox_user = None
+
+        pass_source = "default"
+        iox_pass = custom_password
+        if iox_pass:
+            pass_source = "customParams.isy_password"
+        elif self.poly.config.get('isyPassword'):
+            iox_pass = self.poly.config.get('isyPassword')
+            pass_source = "polyglot.isyPassword"
+        elif iox_cfg.get("password"):
+            iox_pass = iox_cfg.get("password")
+            pass_source = "customData.iox.password"
+        elif custom_iox_pass:
+            iox_pass = custom_iox_pass
+            pass_source = "customData.ioxPassword"
+        else:
+            iox_pass = None
+
+        LOGGER.info(
+            "Resolved IoX connection: host_source=%s user_source=%s pass_source=%s secure=%s",
+            host_source,
+            user_source,
+            pass_source,
+            bool(iox_secure),
         )
-        iox_pass = (
-            custom_password
-            or self.poly.config.get('isyPassword')
-            or iox_cfg.get("password")
-            or custom_iox_pass
-            or DEFAULT_IOX_CONFIG["password"]
+        LOGGER.debug(
+            "Resolved IoX endpoint summary: host=%s port=%s secure=%s user_present=%s pass_present=%s",
+            iox_host,
+            iox_port,
+            bool(iox_secure),
+            bool(iox_user),
+            bool(iox_pass),
         )
 
         return {
@@ -375,15 +623,62 @@ class Controller(Node):
             "password": iox_pass,
         }
 
-    def _refresh_metadata_from_rest_status(self):
+    def _refresh_metadata_with_retry(self, active_node_map, reason):
+        max_attempts = self._rest_refresh_attempts
+        for attempt in range(1, max_attempts + 1):
+            LOGGER.debug(
+                "REST metadata refresh attempt starting: reason=%s attempt=%s/%s active_nodes=%s",
+                reason,
+                attempt,
+                max_attempts,
+                len(active_node_map) if isinstance(active_node_map, dict) else 0,
+            )
+            refreshed = self._refresh_metadata_from_rest_status(active_node_map=active_node_map)
+            if refreshed:
+                LOGGER.info(
+                    "REST metadata refresh succeeded: reason=%s attempt=%s/%s",
+                    reason,
+                    attempt,
+                    max_attempts,
+                )
+                return True
+
+            if attempt >= max_attempts:
+                break
+
+            backoff_s = self._rest_refresh_backoff_s * (2 ** (attempt - 1))
+            LOGGER.warning(
+                "REST metadata refresh failed: reason=%s attempt=%s/%s retry_in=%.1fs",
+                reason,
+                attempt,
+                max_attempts,
+                backoff_s,
+            )
+            time.sleep(backoff_s)
+
+        LOGGER.warning(
+            "REST metadata refresh exhausted retries: reason=%s attempts=%s. Monitoring will continue.",
+            reason,
+            max_attempts,
+        )
+        return False
+
+    def _refresh_metadata_from_rest_status(self, active_node_map=None):
         cfg = self._resolve_iox_connection()
         if not cfg.get("host") or not cfg.get("username") or not cfg.get("password"):
             LOGGER.info("Skipping REST metadata refresh: missing IoX connection settings.")
-            return
+            return False
 
         scheme = "https" if cfg["secure"] else "http"
         rest_base_url = f"{scheme}://{cfg['host']}:{cfg['port']}/rest"
         LOGGER.info("REST metadata refresh target: %s", rest_base_url)
+        LOGGER.debug(
+            "REST metadata fetch starting: host=%s port=%s secure=%s username_present=%s",
+            cfg.get("host"),
+            cfg.get("port"),
+            cfg.get("secure"),
+            bool(cfg.get("username")),
+        )
 
         try:
             records, stats = build_control_metadata_records(
@@ -393,36 +688,53 @@ class Controller(Node):
             )
         except Exception as exc:
             LOGGER.warning("REST metadata refresh failed at fetch/parse stage: %s", exc)
-            return
+            return False
+
+        LOGGER.debug(
+            "REST metadata fetch complete: records=%s status_nodes=%s status_properties=%s slots_loaded=%s",
+            len(records),
+            stats.get("status_nodes", 0),
+            stats.get("status_properties", 0),
+            stats.get("slots_loaded", 0),
+        )
 
         if not records:
             LOGGER.info("REST metadata refresh returned no records: %s", stats)
-            return
+            return False
+
+        rest_node_ids = sorted({str(rec.get("node_id")) for rec in records if rec.get("node_id") is not None})
+        if rest_node_ids:
+            try:
+                database.bulk_upsert_node_activity(
+                    rest_node_ids,
+                    polyglot_active=None,
+                    rest_seen=True,
+                    source="rest_refresh",
+                    seen_ms=current_time_ms(),
+                )
+            except Exception as exc:
+                LOGGER.warning("Failed to persist REST-seen node map: %s", exc)
+
+        active_node_ids = set(active_node_map.keys()) if isinstance(active_node_map, dict) else set()
+        if active_node_ids:
+            all_count = len(records)
+            records = [rec for rec in records if str(rec.get("node_id")) in active_node_ids]
+            LOGGER.info(
+                "REST metadata filtered by active Polyglot nodes: kept=%s dropped=%s active_nodes=%s",
+                len(records),
+                all_count - len(records),
+                len(active_node_ids),
+            )
+            if not records:
+                LOGGER.info("No REST metadata records match active Polyglot nodes.")
+                return False
 
         upserted = 0
         try:
             upserted = database.bulk_upsert_static_metadata(records)
         except Exception as exc:
-            LOGGER.warning("Bulk REST metadata upsert failed; falling back to row-by-row mode: %s", exc)
-            for rec in records:
-                try:
-                    database.upsert_static_metadata(
-                        node_id=rec["node_id"],
-                        control=rec["control"],
-                        uom=rec.get("uom"),
-                        uom_label=rec.get("uom_label"),
-                        source=rec.get("source"),
-                        enum_value=rec.get("enum_value"),
-                        enum_text=rec.get("enum_text"),
-                    )
-                    upserted += 1
-                except Exception as row_exc:
-                    LOGGER.debug(
-                        "REST metadata upsert failed for node=%s control=%s err=%s",
-                        rec.get("node_id"),
-                        rec.get("control"),
-                        row_exc,
-                    )
+            LOGGER.error("Bulk REST metadata upsert failed: %s", exc)
+            return False
 
         LOGGER.info(
             "REST metadata refresh complete: upserted=%s status_nodes=%s status_properties=%s slots_loaded=%s",
@@ -431,6 +743,7 @@ class Controller(Node):
             stats.get("status_properties", 0),
             stats.get("slots_loaded", 0),
         )
+        return upserted > 0
 
     def _start_nucore_subscriber(self):
         custom_data = self.poly.config.get("customData", {})
@@ -440,26 +753,54 @@ class Controller(Node):
             nucore_cfg = custom_data.get("nucore", {})
 
         if not isinstance(nucore_cfg, dict) or not nucore_cfg.get("provider_path"):
-            LOGGER.warning("NuCore config missing in customData. Using built-in defaults.")
-            nucore_cfg = {
-                "provider_path": DEFAULT_NUCORE_CONFIG["provider_path"],
-                "provider_init": dict(DEFAULT_NUCORE_CONFIG["provider_init"]),
-            }
+            LOGGER.warning("NuCore config missing in customData. NuCore subscriber will not start.")
+            return
 
         provider_init = dict(nucore_cfg.get("provider_init", {}))
-        custom_eisy_ip = custom_params.get("eISY_IP") or custom_params.get("EISY_IP")
-        custom_username = custom_params.get("username") or custom_params.get("USERNAME")
-        custom_password = custom_params.get("password") or custom_params.get("PASSWORD")
+        custom_eisy_ip = self._first_non_empty(
+            custom_params.get("isy_ip"),
+            custom_params.get("ISY_IP"),
+            custom_params.get("eISY_IP"),
+            custom_params.get("EISY_IP"),
+        )
+        custom_username = self._first_non_empty(
+            custom_params.get("isy_user"),
+            custom_params.get("ISY_USER"),
+            custom_params.get("username"),
+            custom_params.get("USERNAME"),
+        )
+        custom_password = self._first_non_empty(
+            custom_params.get("isy_password"),
+            custom_params.get("ISY_PASSWORD"),
+            custom_params.get("password"),
+            custom_params.get("PASSWORD"),
+        )
 
-        if custom_eisy_ip:
-            provider_init["base_url"] = custom_eisy_ip
+        resolved_iox = self._resolve_iox_connection()
+        custom_iox_host = _normalize_isy_ip(custom_eisy_ip) if custom_eisy_ip else None
+
+        if custom_iox_host:
+            scheme = "https" if bool(resolved_iox.get("secure")) else "http"
+            port = str(resolved_iox.get("port") or ("443" if scheme == "https" else "80"))
+            provider_init["base_url"] = f"{scheme}://{custom_iox_host}:{port}"
         if custom_username:
             provider_init["username"] = custom_username
         if custom_password:
             provider_init["password"] = custom_password
 
+        if not provider_init.get("base_url") or not provider_init.get("username") or not provider_init.get("password"):
+            LOGGER.warning("NuCore provider_init is incomplete. NuCore subscriber will not start.")
+            return
+
         nucore_cfg["provider_init"] = provider_init
 
+        LOGGER.debug(
+            "NuCore startup config: provider_path=%s base_url=%s user_present=%s pass_present=%s",
+            nucore_cfg.get("provider_path"),
+            provider_init.get("base_url"),
+            bool(provider_init.get("username")),
+            bool(provider_init.get("password")),
+        )
         LOGGER.info(
             "NuCore provider_init resolved: base_url=%s username=%s password=%s",
             bool(provider_init.get("base_url")),
@@ -504,10 +845,21 @@ class Controller(Node):
         iox_user = iox_conn["username"]
         iox_pass = iox_conn["password"]
 
+        if not iox_ip:
+            LOGGER.error("IoX host is missing; set customParams isy_ip or customData.iox.host/ip.")
+            return
         if not iox_user or not iox_pass:
-            LOGGER.error("IoX credentials are missing; set isyUser/isyPassword or IOX_USERNAME/IOX_PASSWORD.")
+            LOGGER.error("IoX credentials are missing; set customParams isy_user/isy_password or customData values.")
             return
 
+        LOGGER.debug(
+            "IoX startup config: host=%s port=%s secure=%s username_present=%s password_present=%s",
+            iox_ip,
+            iox_port,
+            iox_secure,
+            bool(iox_user),
+            bool(iox_pass),
+        )
         LOGGER.info(
             "IoX fallback config: host=%s port=%s secure=%s username=%s",
             iox_ip,
@@ -581,11 +933,18 @@ class Controller(Node):
         if node_id is not None and control is not None:
             try:
                 enum_value = None
+                enum_text = None if action is None else str(action)
                 if _coerce_int(uom) == 25:
                     # Prefer raw action enum when present; otherwise use normalized value.
                     enum_value = _coerce_int(raw_action)
                     if enum_value is None:
                         enum_value = _coerce_int(value)
+
+                    if enum_text is None and enum_value is not None:
+                        existing_meta = self._get_control_meta(node_id, control)
+                        if isinstance(existing_meta, dict):
+                            enum_map = existing_meta.get("enum_map") or {}
+                            enum_text = enum_map.get(str(enum_value))
 
                 updated_meta = database.upsert_static_metadata(
                     node_id=str(node_id),
@@ -595,7 +954,7 @@ class Controller(Node):
                     uom=uom,
                     source=None if event.get("source") is None else str(event.get("source")),
                     enum_value=enum_value,
-                    enum_text=None if action is None else str(action),
+                    enum_text=enum_text,
                     event_time_ms=event_time,
                 )
                 if isinstance(updated_meta, dict):
@@ -610,6 +969,18 @@ class Controller(Node):
         event["node_id"] = str(node_id)
         event["control"] = str(control)
         control_meta = self._get_control_meta(node_id, control)
+
+        is_valid = self._validate_value_with_lookup(value, control_meta)
+        if is_valid is False:
+            LOGGER.warning(
+                "Lookup validation out-of-range: node=%s control=%s value=%s uom=%s editor=%s",
+                event["node_id"],
+                event["control"],
+                value,
+                None if not isinstance(control_meta, dict) else control_meta.get("uom"),
+                None if not isinstance(control_meta, dict) else control_meta.get("editor_id"),
+            )
+
         if self._should_skip_dynamic_event(event, control_meta):
             return
 

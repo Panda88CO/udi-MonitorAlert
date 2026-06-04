@@ -25,8 +25,18 @@ class IoXEventSubscriber:
         scheme = "wss" if self.secure else "ws"
         self.ws_url = f"{scheme}://{self.host}:{self.port}/rest/subscribe"
         self.ws = None
+        LOGGER.debug(
+            "IoX subscriber initialized: host=%s port=%s secure=%s ws_url=%s username_present=%s password_present=%s",
+            self.host,
+            self.port,
+            self.secure,
+            self.ws_url,
+            bool(username),
+            bool(password),
+        )
 
     def start(self):
+        LOGGER.info("Starting IoX subscriber thread for %s", self.ws_url)
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
@@ -39,6 +49,7 @@ class IoXEventSubscriber:
             on_close=self._on_close
         )
         LOGGER.info(f"Connecting to IoX Event Stream at {self.ws_url}...")
+        LOGGER.debug("IoX websocket headers prepared: auth_present=%s", bool(self.auth_header))
         if self.secure:
             # eISY commonly uses self-signed certs on local LAN.
             self.ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})

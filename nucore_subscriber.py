@@ -28,8 +28,14 @@ class NuCoreEventSubscriber:
         self.thread = None
 
         self._validate_config()
+        LOGGER.debug(
+            "NuCore subscriber initialized: provider_path=%s provider_init_keys=%s",
+            self.config.get("provider_path"),
+            sorted((self.config.get("provider_init") or {}).keys()),
+        )
 
     def start(self):
+        LOGGER.info("Starting NuCore subscriber thread for provider_path=%s", self.config.get("provider_path"))
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
@@ -50,8 +56,12 @@ class NuCoreEventSubscriber:
 
     def _run(self):
         try:
+            LOGGER.debug("NuCore subscriber loading provider...")
             self.provider = self._load_provider()
+            LOGGER.debug("NuCore provider loaded: %s", type(self.provider).__name__)
+            LOGGER.debug("NuCore installing callback...")
             self._install_callback(self.provider)
+            LOGGER.debug("NuCore starting provider...")
             self._start_provider(self.provider)
             LOGGER.info("NuCore callback subscriber started.")
         except Exception as err:
@@ -71,6 +81,7 @@ class NuCoreEventSubscriber:
             )
 
         module_name, attr_name = self._split_provider_path(provider_path)
+        LOGGER.debug("NuCore importing provider module=%s attr=%s", module_name, attr_name)
         module = importlib.import_module(module_name)
         provider_attr = getattr(module, attr_name)
 
@@ -106,6 +117,7 @@ class NuCoreEventSubscriber:
         # Prefer NuCore contract first.
         subscribe_events = getattr(provider, "subscribe_events", None)
         if callable(subscribe_events):
+            LOGGER.debug("NuCore provider exposes subscribe_events; using native callback contract.")
             self._install_nucore_callback(subscribe_events)
             LOGGER.info("NuCore callback registered using provider.subscribe_events().")
             return
@@ -129,6 +141,7 @@ class NuCoreEventSubscriber:
             if method is None:
                 continue
 
+            LOGGER.debug("Trying NuCore callback registration method: %s", name)
             if self._try_callback_signatures(method):
                 LOGGER.info(f"NuCore callback registered using provider.{name}().")
                 return
@@ -178,11 +191,13 @@ class NuCoreEventSubscriber:
         if method_name:
             start_method = getattr(provider, method_name, None)
             if callable(start_method):
+                LOGGER.debug("NuCore invoking configured start method: %s", method_name)
                 start_method()
             return
 
         default_start = getattr(provider, "start", None)
         if callable(default_start):
+            LOGGER.debug("NuCore invoking default provider.start().")
             default_start()
 
     def _on_event(self, *args, **kwargs):

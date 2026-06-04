@@ -4,6 +4,7 @@ import importlib
 import sqlite3
 import logging
 import json
+import hashlib
 from datetime import datetime, timezone
 from typing import Any
 
@@ -61,6 +62,93 @@ def _ensure_node_control_static_schema(cursor: sqlite3.Cursor):
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN policy_reason TEXT")
     if "refreshed_at_ms" not in columns:
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN refreshed_at_ms INTEGER")
+    if "editor_id" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN editor_id TEXT")
+    if "nls_prefix" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN nls_prefix TEXT")
+    if "min_value" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN min_value REAL")
+    if "max_value" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN max_value REAL")
+    if "allowed_subset_json" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN allowed_subset_json TEXT")
+    if "allowed_subset_id" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN allowed_subset_id INTEGER")
+
+
+def _ensure_allowed_subset_lookup_schema(cursor: sqlite3.Cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS allowed_subset_lookup (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subset_hash TEXT NOT NULL UNIQUE,
+            subset_json TEXT NOT NULL UNIQUE
+        )
+        """
+    )
+
+
+def _normalize_allowed_subset(allowed_subset: list[str] | None) -> list[str] | None:
+    if not allowed_subset:
+        return None
+    normalized = sorted({str(v) for v in allowed_subset if str(v) != ""})
+    return normalized if normalized else None
+
+
+def _get_or_create_allowed_subset_id(
+    cursor: sqlite3.Cursor,
+    allowed_subset: list[str] | None,
+) -> tuple[int | None, str | None]:
+    normalized = _normalize_allowed_subset(allowed_subset)
+    if not normalized:
+        return None, None
+
+    subset_json = json.dumps(normalized, separators=(",", ":"))
+    subset_hash = hashlib.sha1(subset_json.encode("utf-8")).hexdigest()
+
+    cursor.execute(
+        """
+        INSERT INTO allowed_subset_lookup (subset_hash, subset_json)
+        VALUES (?, ?)
+        ON CONFLICT(subset_hash)
+        DO UPDATE SET subset_json = excluded.subset_json
+        """,
+        (subset_hash, subset_json),
+    )
+    cursor.execute(
+        "SELECT id FROM allowed_subset_lookup WHERE subset_hash = ?",
+        (subset_hash,),
+    )
+    row = cursor.fetchone()
+    return (int(row["id"]) if row else None), subset_json
+
+
+def _backfill_allowed_subset_lookup(cursor: sqlite3.Cursor):
+    columns = set(_get_table_columns(cursor, "node_control_static"))
+    if "allowed_subset_json" not in columns or "allowed_subset_id" not in columns:
+        return
+
+    cursor.execute(
+        """
+        SELECT node_id, control, allowed_subset_json
+        FROM node_control_static
+        WHERE allowed_subset_id IS NULL AND allowed_subset_json IS NOT NULL
+        """
+    )
+    rows = cursor.fetchall()
+    for row in rows:
+        subset = _decode_subset(row["allowed_subset_json"])
+        subset_id, _ = _get_or_create_allowed_subset_id(cursor, subset)
+        if subset_id is None:
+            continue
+        cursor.execute(
+            """
+            UPDATE node_control_static
+            SET allowed_subset_id = ?
+            WHERE node_id = ? AND control = ?
+            """,
+            (subset_id, row["node_id"], row["control"]),
+        )
 
 
 def _derive_storage_policy(uom: int | None) -> tuple[int, str, str]:
@@ -82,6 +170,18 @@ def _decode_enum_map(raw: str | None) -> dict[str, str]:
     return {}
 
 
+def _decode_subset(raw: str | None) -> list[str] | None:
+    if not raw:
+        return None
+    try:
+        decoded = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if isinstance(decoded, list):
+        return [str(v) for v in decoded]
+    return None
+
+
 def _to_control_meta(row: sqlite3.Row) -> dict[str, Any]:
     return {
         "node_id": row["node_id"],
@@ -91,6 +191,11 @@ def _to_control_meta(row: sqlite3.Row) -> dict[str, Any]:
         "uom": row["uom"],
         "uom_label": row["uom_label"],
         "source": row["source"],
+        "editor_id": row["editor_id"],
+        "nls_prefix": row["nls_prefix"],
+        "min_value": row["min_value"],
+        "max_value": row["max_value"],
+        "allowed_subset": _decode_subset(row["allowed_subset_json"]),
         "enum_map": _decode_enum_map(row["enum_map_json"]),
         "is_timestamp_like": bool(row["is_timestamp_like"]),
         "storage_policy": row["storage_policy"] or "store_value",
@@ -143,6 +248,22 @@ def _ensure_events_dynamic_numeric_schema(cursor: sqlite3.Cursor):
     cursor.execute("ALTER TABLE events_dynamic_new RENAME TO events_dynamic")
 
 
+def _ensure_node_activity_map_schema(cursor: sqlite3.Cursor):
+    columns = set(_get_table_columns(cursor, "node_activity_map"))
+    if "node_id" not in columns:
+        return
+    if "polyglot_active" not in columns:
+        cursor.execute("ALTER TABLE node_activity_map ADD COLUMN polyglot_active INTEGER NOT NULL DEFAULT 0")
+    if "rest_seen" not in columns:
+        cursor.execute("ALTER TABLE node_activity_map ADD COLUMN rest_seen INTEGER NOT NULL DEFAULT 0")
+    if "last_source" not in columns:
+        cursor.execute("ALTER TABLE node_activity_map ADD COLUMN last_source TEXT")
+    if "first_seen_ms" not in columns:
+        cursor.execute("ALTER TABLE node_activity_map ADD COLUMN first_seen_ms INTEGER NOT NULL DEFAULT 0")
+    if "last_seen_ms" not in columns:
+        cursor.execute("ALTER TABLE node_activity_map ADD COLUMN last_seen_ms INTEGER NOT NULL DEFAULT 0")
+
+
 def init_db():
     conn = _connect()
     cursor = conn.cursor()
@@ -164,12 +285,19 @@ def init_db():
             first_seen_ms INTEGER NOT NULL,
             last_seen_ms INTEGER NOT NULL,
             refreshed_at_ms INTEGER,
+            editor_id TEXT,
+            nls_prefix TEXT,
+            min_value REAL,
+            max_value REAL,
+            allowed_subset_json TEXT,
             PRIMARY KEY (node_id, control)
         )
         """
     )
 
     _ensure_node_control_static_schema(cursor)
+    _ensure_allowed_subset_lookup_schema(cursor)
+    _backfill_allowed_subset_lookup(cursor)
 
     cursor.execute(
         """
@@ -188,6 +316,21 @@ def init_db():
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_events_time ON events_dynamic (event_time_ms)"
     )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS node_activity_map (
+            node_id TEXT PRIMARY KEY,
+            polyglot_active INTEGER NOT NULL DEFAULT 0,
+            rest_seen INTEGER NOT NULL DEFAULT 0,
+            last_source TEXT,
+            first_seen_ms INTEGER NOT NULL,
+            last_seen_ms INTEGER NOT NULL
+        )
+        """
+    )
+
+    _ensure_node_activity_map_schema(cursor)
 
     _ensure_events_dynamic_numeric_schema(cursor)
 
@@ -256,6 +399,12 @@ def upsert_static_metadata(
     enum_value: int | None = None,
     enum_text: str | None = None,
     event_time_ms: int | None = None,
+    editor_id: str | None = None,
+    nls_prefix: str | None = None,
+    min_value: float | None = None,
+    max_value: float | None = None,
+    allowed_subset: list[str] | None = None,
+    enum_map: dict[str, str] | None = None,
 ):
     if not node_id or not control:
         return
@@ -265,6 +414,8 @@ def upsert_static_metadata(
 
     conn = _connect()
     cursor = conn.cursor()
+    allowed_subset_id, allowed_subset_json = _get_or_create_allowed_subset_id(cursor, allowed_subset)
+    enum_map_json = json.dumps(enum_map, separators=(",", ":")) if enum_map else None
     cursor.execute(
         """
         INSERT INTO node_control_static (
@@ -281,9 +432,15 @@ def upsert_static_metadata(
             policy_reason,
             first_seen_ms,
             last_seen_ms,
-            refreshed_at_ms
+            refreshed_at_ms,
+            editor_id,
+            nls_prefix,
+            min_value,
+            max_value,
+            allowed_subset_json,
+            allowed_subset_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id, control)
         DO UPDATE SET
             name = COALESCE(excluded.name, node_control_static.name),
@@ -292,6 +449,12 @@ def upsert_static_metadata(
             enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
             uom_label = COALESCE(excluded.uom_label, node_control_static.uom_label),
             source = COALESCE(excluded.source, node_control_static.source),
+            editor_id = COALESCE(excluded.editor_id, node_control_static.editor_id),
+            nls_prefix = COALESCE(excluded.nls_prefix, node_control_static.nls_prefix),
+            min_value = COALESCE(excluded.min_value, node_control_static.min_value),
+            max_value = COALESCE(excluded.max_value, node_control_static.max_value),
+            allowed_subset_json = COALESCE(excluded.allowed_subset_json, node_control_static.allowed_subset_json),
+            allowed_subset_id = COALESCE(excluded.allowed_subset_id, node_control_static.allowed_subset_id),
             is_timestamp_like = excluded.is_timestamp_like,
             storage_policy = excluded.storage_policy,
             policy_reason = excluded.policy_reason,
@@ -307,67 +470,49 @@ def upsert_static_metadata(
             name,
             action,
             uom,
-            None,
-            uom_label,
-            source,
-            is_timestamp_like,
-            storage_policy,
-            policy_reason,
-            seen_ms,
-            seen_ms,
-            seen_ms,
-        ),
-    )
-
-    # For enum UOM (25), store a static numeric-to-label translation map.
-    if _coerce_int(uom) == 25 and enum_value is not None and enum_text:
-        cursor.execute(
-            """
-            SELECT enum_map_json
-            FROM node_control_static
-            WHERE node_id = ? AND control = ?
-            """,
-            (node_id, control),
-        )
-        row = cursor.fetchone()
-
-        enum_map: dict[str, str] = _decode_enum_map(row["enum_map_json"] if row else None)
-
-        key = str(enum_value)
-        if enum_map.get(key) != str(enum_text):
-            enum_map[key] = str(enum_text)
-            cursor.execute(
-                """
-                UPDATE node_control_static
-                SET enum_map_json = ?,
-                    last_seen_ms = CASE
-                        WHEN ? > last_seen_ms THEN ?
-                        ELSE last_seen_ms
-                    END
-                WHERE node_id = ? AND control = ?
-                """,
-                (json.dumps(enum_map, separators=(",", ":")), seen_ms, seen_ms, node_id, control),
-            )
-
-    cursor.execute(
-        """
-        SELECT
-            node_id,
-            control,
-            name,
-            action,
-            uom,
             enum_map_json,
             uom_label,
             source,
             is_timestamp_like,
             storage_policy,
             policy_reason,
-            first_seen_ms,
-            last_seen_ms,
-            refreshed_at_ms
-        FROM node_control_static
-        WHERE node_id = ? AND control = ?
+            seen_ms,
+            seen_ms,
+            seen_ms,
+            editor_id,
+            nls_prefix,
+            min_value,
+            max_value,
+            allowed_subset_json,
+            allowed_subset_id,
+        ),
+    )
+
+    cursor.execute(
+        """
+        SELECT
+            ncs.node_id,
+            ncs.control,
+            ncs.name,
+            ncs.action,
+            ncs.uom,
+            ncs.enum_map_json,
+            ncs.uom_label,
+            ncs.source,
+            ncs.editor_id,
+            ncs.nls_prefix,
+            ncs.min_value,
+            ncs.max_value,
+            asl.subset_json AS allowed_subset_json,
+            ncs.is_timestamp_like,
+            ncs.storage_policy,
+            ncs.policy_reason,
+            ncs.first_seen_ms,
+            ncs.last_seen_ms,
+            ncs.refreshed_at_ms
+        FROM node_control_static ncs
+        LEFT JOIN allowed_subset_lookup asl ON asl.id = ncs.allowed_subset_id
+        WHERE ncs.node_id = ? AND ncs.control = ?
         """,
         (node_id, control),
     )
@@ -405,6 +550,9 @@ def bulk_upsert_static_metadata(
 
             uom = rec.get("uom")
             is_timestamp_like, storage_policy, policy_reason = _derive_storage_policy(_coerce_int(uom))
+            allowed_subset_id, allowed_subset_json = _get_or_create_allowed_subset_id(cursor, rec.get("allowed_subset"))
+            enum_map = rec.get("enum_map")
+            enum_map_json = json.dumps(enum_map, separators=(",", ":")) if enum_map else None
 
             cursor.execute(
                 """
@@ -422,9 +570,15 @@ def bulk_upsert_static_metadata(
                     policy_reason,
                     first_seen_ms,
                     last_seen_ms,
-                    refreshed_at_ms
+                    refreshed_at_ms,
+                    editor_id,
+                    nls_prefix,
+                    min_value,
+                    max_value,
+                    allowed_subset_json,
+                    allowed_subset_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(node_id, control)
                 DO UPDATE SET
                     name = COALESCE(excluded.name, node_control_static.name),
@@ -433,6 +587,12 @@ def bulk_upsert_static_metadata(
                     enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
                     uom_label = COALESCE(excluded.uom_label, node_control_static.uom_label),
                     source = COALESCE(excluded.source, node_control_static.source),
+                    editor_id = COALESCE(excluded.editor_id, node_control_static.editor_id),
+                    nls_prefix = COALESCE(excluded.nls_prefix, node_control_static.nls_prefix),
+                    min_value = COALESCE(excluded.min_value, node_control_static.min_value),
+                    max_value = COALESCE(excluded.max_value, node_control_static.max_value),
+                    allowed_subset_json = COALESCE(excluded.allowed_subset_json, node_control_static.allowed_subset_json),
+                    allowed_subset_id = COALESCE(excluded.allowed_subset_id, node_control_static.allowed_subset_id),
                     is_timestamp_like = excluded.is_timestamp_like,
                     storage_policy = excluded.storage_policy,
                     policy_reason = excluded.policy_reason,
@@ -448,7 +608,7 @@ def bulk_upsert_static_metadata(
                     rec.get("name"),
                     rec.get("action"),
                     uom,
-                    None,
+                    enum_map_json,
                     rec.get("uom_label"),
                     rec.get("source"),
                     is_timestamp_like,
@@ -457,37 +617,14 @@ def bulk_upsert_static_metadata(
                     seen_ms,
                     seen_ms,
                     seen_ms,
+                    rec.get("editor_id"),
+                    rec.get("nls_prefix"),
+                    rec.get("min_value"),
+                    rec.get("max_value"),
+                    allowed_subset_json,
+                    allowed_subset_id,
                 ),
             )
-
-            enum_value = rec.get("enum_value")
-            enum_text = rec.get("enum_text")
-            if _coerce_int(uom) == 25 and enum_value is not None and enum_text:
-                cursor.execute(
-                    """
-                    SELECT enum_map_json
-                    FROM node_control_static
-                    WHERE node_id = ? AND control = ?
-                    """,
-                    (node_id, control),
-                )
-                row = cursor.fetchone()
-                enum_map = _decode_enum_map(row["enum_map_json"] if row else None)
-                key = str(enum_value)
-                if enum_map.get(key) != str(enum_text):
-                    enum_map[key] = str(enum_text)
-                    cursor.execute(
-                        """
-                        UPDATE node_control_static
-                        SET enum_map_json = ?,
-                            last_seen_ms = CASE
-                                WHEN ? > last_seen_ms THEN ?
-                                ELSE last_seen_ms
-                            END
-                        WHERE node_id = ? AND control = ?
-                        """,
-                        (json.dumps(enum_map, separators=(",", ":")), seen_ms, seen_ms, node_id, control),
-                    )
 
             applied += 1
 
@@ -503,21 +640,27 @@ def load_control_metadata_index() -> dict[tuple[str, str], dict[str, Any]]:
     cursor.execute(
         """
         SELECT
-            node_id,
-            control,
-            name,
-            action,
-            uom,
-            enum_map_json,
-            uom_label,
-            source,
-            is_timestamp_like,
-            storage_policy,
-            policy_reason,
-            first_seen_ms,
-            last_seen_ms,
-            refreshed_at_ms
-        FROM node_control_static
+            ncs.node_id,
+            ncs.control,
+            ncs.name,
+            ncs.action,
+            ncs.uom,
+            ncs.enum_map_json,
+            ncs.uom_label,
+            ncs.source,
+            ncs.editor_id,
+            ncs.nls_prefix,
+            ncs.min_value,
+            ncs.max_value,
+            asl.subset_json AS allowed_subset_json,
+            ncs.is_timestamp_like,
+            ncs.storage_policy,
+            ncs.policy_reason,
+            ncs.first_seen_ms,
+            ncs.last_seen_ms,
+            ncs.refreshed_at_ms
+        FROM node_control_static ncs
+        LEFT JOIN allowed_subset_lookup asl ON asl.id = ncs.allowed_subset_id
         """
     )
     rows = cursor.fetchall()
@@ -589,6 +732,140 @@ def load_active_filters() -> list[dict[str, Any]]:
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return rows
+
+
+def upsert_node_activity(
+    node_id: str,
+    *,
+    polyglot_active: bool | None = None,
+    rest_seen: bool | None = None,
+    source: str | None = None,
+    seen_ms: int | None = None,
+):
+    node_key = str(node_id or "").strip()
+    if not node_key:
+        return
+
+    mark_ms = seen_ms if seen_ms is not None else _now_ms()
+    poly_value = None if polyglot_active is None else (1 if polyglot_active else 0)
+    rest_value = None if rest_seen is None else (1 if rest_seen else 0)
+
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO node_activity_map (
+            node_id,
+            polyglot_active,
+            rest_seen,
+            last_source,
+            first_seen_ms,
+            last_seen_ms
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(node_id)
+        DO UPDATE SET
+            polyglot_active = CASE
+                WHEN ? IS NULL THEN node_activity_map.polyglot_active
+                ELSE ?
+            END,
+            rest_seen = CASE
+                WHEN ? IS NULL THEN node_activity_map.rest_seen
+                ELSE ?
+            END,
+            last_source = COALESCE(excluded.last_source, node_activity_map.last_source),
+            last_seen_ms = CASE
+                WHEN excluded.last_seen_ms > node_activity_map.last_seen_ms THEN excluded.last_seen_ms
+                ELSE node_activity_map.last_seen_ms
+            END
+        """,
+        (
+            node_key,
+            0 if poly_value is None else poly_value,
+            0 if rest_value is None else rest_value,
+            source,
+            mark_ms,
+            mark_ms,
+            poly_value,
+            0 if poly_value is None else poly_value,
+            rest_value,
+            0 if rest_value is None else rest_value,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+
+def bulk_upsert_node_activity(
+    node_ids: list[str],
+    *,
+    polyglot_active: bool | None = None,
+    rest_seen: bool | None = None,
+    source: str | None = None,
+    seen_ms: int | None = None,
+) -> int:
+    if not node_ids:
+        return 0
+
+    mark_ms = seen_ms if seen_ms is not None else _now_ms()
+    conn = _connect()
+    cursor = conn.cursor()
+    applied = 0
+
+    poly_value = None if polyglot_active is None else (1 if polyglot_active else 0)
+    rest_value = None if rest_seen is None else (1 if rest_seen else 0)
+
+    try:
+        for raw_node_id in node_ids:
+            node_id = str(raw_node_id or "").strip()
+            if not node_id:
+                continue
+            cursor.execute(
+                """
+                INSERT INTO node_activity_map (
+                    node_id,
+                    polyglot_active,
+                    rest_seen,
+                    last_source,
+                    first_seen_ms,
+                    last_seen_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(node_id)
+                DO UPDATE SET
+                    polyglot_active = CASE
+                        WHEN ? IS NULL THEN node_activity_map.polyglot_active
+                        ELSE ?
+                    END,
+                    rest_seen = CASE
+                        WHEN ? IS NULL THEN node_activity_map.rest_seen
+                        ELSE ?
+                    END,
+                    last_source = COALESCE(excluded.last_source, node_activity_map.last_source),
+                    last_seen_ms = CASE
+                        WHEN excluded.last_seen_ms > node_activity_map.last_seen_ms THEN excluded.last_seen_ms
+                        ELSE node_activity_map.last_seen_ms
+                    END
+                """,
+                (
+                    node_id,
+                    0 if poly_value is None else poly_value,
+                    0 if rest_value is None else rest_value,
+                    source,
+                    mark_ms,
+                    mark_ms,
+                    poly_value,
+                    0 if poly_value is None else poly_value,
+                    rest_value,
+                    0 if rest_value is None else rest_value,
+                ),
+            )
+            applied += 1
+        conn.commit()
+        return applied
+    finally:
+        conn.close()
 
 
 def _match_pattern(value: str | None, pattern: str | None) -> bool:

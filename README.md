@@ -68,9 +68,12 @@ Notes:
 
 - `provider_path` also supports `module:ClassName` format.
 - If NuCore startup fails, the node server falls back to IoX subscriber mode.
-- You can provide connection values in PG3 custom parameters using `eISY_IP`, `username`, and `password` (or uppercase variants).
-- For NuCore, `eISY_IP` is mapped to `customData.nucore.provider_init.base_url` at startup.
-- For IoX fallback, `eISY_IP` is parsed as host or URL and mapped to IoX `host`/`port`/`secure` when provided.
+- Preferred PG3 custom parameters are `isy_ip`, `isy_user`, and `isy_password`.
+- Backward-compatible aliases are still accepted: `eISY_IP`, `username`, `password`, and uppercase variants.
+- `isy_ip` should be entered as plain IPv4 only (example: `192.168.1.240`).
+- For NuCore, the system builds `customData.nucore.provider_init.base_url` from `isy_ip` plus resolved protocol/port.
+- For IoX fallback, `isy_ip` maps to IoX host while protocol/port are resolved from system settings.
+- On startup, REST metadata refresh uses bounded retry (`UDI_REST_REFRESH_ATTEMPTS`, `UDI_REST_REFRESH_BACKOFF_S`) and then continues monitoring even if metadata refresh is unavailable.
 
 ## PG3x customParams Example
 
@@ -78,7 +81,17 @@ Use these PG3x custom parameters to drive both NuCore startup and IoX fallback:
 
 ```json
 {
-  "eISY_IP": "https://YOUR_EISY_IP:443",
+  "isy_ip": "192.168.1.240",
+  "isy_user": "admin",
+  "isy_password": "YOUR_PASSWORD"
+}
+```
+
+Legacy format remains supported:
+
+```json
+{
+  "eISY_IP": "192.168.1.240",
   "username": "admin",
   "password": "YOUR_PASSWORD"
 }

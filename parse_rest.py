@@ -64,6 +64,13 @@ def _coerce_int(value):
         return None
 
 
+def _coerce_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _fetch_text(url, auth, timeout=10):
     try:
         response = requests.get(url, auth=auth, timeout=timeout)
@@ -116,6 +123,43 @@ def _parse_subset_values(subset):
             continue
         values.add(token)
     return values
+
+
+def _candidate_matches_value(candidate, uom, value_str):
+    if candidate.get("uom") != uom:
+        return False
+
+    subset = candidate.get("subset")
+    if subset is not None:
+        return value_str in subset
+
+    value_num = _coerce_float(value_str)
+    min_value = candidate.get("min")
+    max_value = candidate.get("max")
+    if value_num is None:
+        return True
+    if min_value is not None and value_num < min_value:
+        return False
+    if max_value is not None and value_num > max_value:
+        return False
+    return True
+
+
+def _select_candidate(slot_assets, control, uom, value_str):
+    if not slot_assets:
+        return None
+    candidates = slot_assets.get("control_candidates", {}).get(control, [])
+    if not candidates:
+        return None
+
+    exact_matches = [c for c in candidates if _candidate_matches_value(c, uom, value_str)]
+    if exact_matches:
+        return exact_matches[0]
+
+    same_uom = [c for c in candidates if c.get("uom") == uom]
+    if same_uom:
+        return same_uom[0]
+    return None
 
 
 def _slot_from_node_id(node_id):
@@ -179,6 +223,8 @@ def _load_profile_assets(rest_base_url, auth, slot):
                     "uom": _coerce_int(rng.attrib.get("uom")),
                     "subset": _parse_subset_values(rng.attrib.get("subset")),
                     "nls": rng.attrib.get("nls"),
+                    "min": _coerce_float(rng.attrib.get("min")),
+                    "max": _coerce_float(rng.attrib.get("max")),
                 })
             editors[editor_id] = ranges
 
@@ -200,6 +246,8 @@ def _load_profile_assets(rest_base_url, auth, slot):
                     "uom": rng.get("uom"),
                     "subset": rng.get("subset"),
                     "nls": rng.get("nls"),
+                    "min": rng.get("min"),
+                    "max": rng.get("max"),
                 })
 
     out = {
@@ -237,6 +285,31 @@ def _resolve_uom25_enum_text(slot_assets, control, value_str, fallback_text):
     if len(resolved) == 1:
         return next(iter(resolved))
     return fallback_text
+
+
+def _build_uom25_enum_map(slot_assets, control):
+    if not slot_assets:
+        return {}
+
+    candidates = slot_assets.get("control_candidates", {}).get(control, [])
+    nls_map = slot_assets.get("nls", {})
+    if not candidates or not nls_map:
+        return {}
+
+    enum_map = {}
+    for candidate in candidates:
+        if candidate.get("uom") != 25:
+            continue
+        nls_prefix = candidate.get("nls")
+        subset = candidate.get("subset")
+        if not nls_prefix or subset is None:
+            continue
+        for raw_value in subset:
+            key = str(raw_value)
+            text = nls_map.get(f"{nls_prefix}-{key}")
+            if text:
+                enum_map[key] = text
+    return enum_map
 
 
 def build_control_metadata_records(rest_base_url, username, password, timeout=10):
@@ -277,15 +350,30 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
             value_raw = prop.attrib.get("value")
             value_int = _coerce_int(value_raw)
             formatted = prop.attrib.get("formatted")
+            value_str = "" if value_raw is None else str(value_raw)
+
+            selected_candidate = _select_candidate(slot_assets, control, uom, value_str)
+            selected_nls_prefix = selected_candidate.get("nls") if selected_candidate else None
+            selected_editor_id = selected_candidate.get("editor_id") if selected_candidate else None
+            selected_min = selected_candidate.get("min") if selected_candidate else None
+            selected_max = selected_candidate.get("max") if selected_candidate else None
+            selected_subset = None
+            if selected_candidate and selected_candidate.get("subset") is not None:
+                selected_subset = sorted(selected_candidate.get("subset"))
 
             enum_text = None
+            enum_map = None
             if uom == 25 and value_raw is not None:
+                built_enum_map = _build_uom25_enum_map(slot_assets, control)
+                enum_map = built_enum_map or None
                 enum_text = _resolve_uom25_enum_text(
                     slot_assets=slot_assets,
                     control=control,
                     value_str=str(value_raw),
                     fallback_text=formatted,
                 )
+                if enum_text is None and enum_map is not None:
+                    enum_text = enum_map.get(str(value_raw))
 
             records.append({
                 "node_id": str(node_id),
@@ -293,6 +381,12 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
                 "uom": uom,
                 "uom_label": UOM_LABELS.get(uom) if uom is not None else None,
                 "source": "status_profile" if slot else "status_internal",
+                "editor_id": selected_editor_id,
+                "nls_prefix": selected_nls_prefix,
+                "min_value": selected_min,
+                "max_value": selected_max,
+                "allowed_subset": selected_subset,
+                "enum_map": enum_map,
                 "enum_value": value_int if uom == 25 else None,
                 "enum_text": enum_text,
             })
@@ -355,65 +449,43 @@ def load_profile_metadata(profile_id):
 
 
 def parse_all_registered_nodes():
-    """Queries the entire loop of registered nodes and parses them using dynamic profiles."""
-    print("Requesting global master node list...")
-    nodes_xml = fetch_xml(f"{BASE_URL}/nodes")
-    
-    if nodes_xml is None:
-        print("Failed to retrieve nodes.")
+    """Print active node/control mappings using the /rest/status profile-aware pipeline."""
+    print("Requesting active node list from /rest/status...")
+    records, stats = build_control_metadata_records(BASE_URL, USERNAME, PASSWORD)
+
+    if not records:
+        print("Failed to retrieve status/profile metadata records.")
+        print(f"Stats: {stats}")
         return
 
-    all_nodes = nodes_xml.findall(".//node")
-    print(f"Found {len(all_nodes)} total registered nodes configuration. Processing...\n")
+    print(
+        "Found "
+        f"{stats.get('status_nodes', 0)} nodes, "
+        f"{stats.get('status_properties', 0)} properties, "
+        f"{stats.get('slots_loaded', 0)} slots."
+    )
+    print(f"Materialized {stats.get('records', len(records))} metadata records.\n")
 
-    for node in all_nodes:
-        address_el = node.find("address")
-        name_el = node.find("name")
-        node_address = address_el.text if (address_el is not None and address_el.text) else "Unknown"
-        node_name = name_el.text if (name_el is not None and name_el.text) else "Unknown"
-        node_def_id = node.attrib.get("nodeDefId")
-        
-        # 'profile' tells us which slot profile houses this node's definitions
-        profile_id = node.attrib.get("profile")
+    by_node = {}
+    for rec in records:
+        by_node.setdefault(rec["node_id"], []).append(rec)
 
-        # If profile missing, it might be an internal system node (e.g. ID 'ZY000' for Z-Wave controllers)
-        if not profile_id:
-            continue
+    for node_id in sorted(by_node.keys()):
+        print("==================================================")
+        print(f"NODE: {node_id}")
+        print("--------------------------------------------------")
+        for rec in sorted(by_node[node_id], key=lambda row: row["control"]):
+            control = rec["control"]
+            uom = rec.get("uom")
+            uom_label = rec.get("uom_label") or "Unknown"
+            source = rec.get("source") or "unknown"
+            enum_value = rec.get("enum_value")
+            enum_text = rec.get("enum_text")
 
-        # Dynamically load/fetch the definition matrices for this node's specific profile context
-        meta = load_profile_metadata(profile_id)
-        node_defs = meta["node_defs"]
-        nls_data = meta["nls"]
-
-        print(f"\n==================================================")
-        print(f"NODE: {node_name} [{node_address}]")
-        print(f"Profile Slot: {profile_id} | Definition ID: {node_def_id}")
-        print(f"--------------------------------------------------")
-
-        # Match active properties against the calculated schema definitions
-        def_meta = node_defs.get(node_def_id)
-        
-        for prop in node.findall(".//property"):
-            prop_id = prop.attrib.get("id")              # e.g., 'ST', 'GV1'
-            raw_val = prop.attrib.get("value")           # e.g., '20'
-            formatted = prop.attrib.get("formatted")     # e.g., '20°C' or 'On'
-
-            # Lookup property friendly name in NLS (e.g., D-ST = "Status")
-            nls_driver_key = f"D-{prop_id}"
-            driver_label = nls_data.get(nls_driver_key, prop_id)
-
-            print(f"  -> {driver_label} ({prop_id}): {formatted} (Raw: {raw_val})")
-
-            # Deep parse editor data if it exists for this property
-            if def_meta and prop_id in def_meta["drivers"]:
-                driver_meta = def_meta["drivers"][prop_id]
-                for r in driver_meta["editor_info"].get("range", []):
-                    nls_subset_prefix = r.get("nls")
-                    if nls_subset_prefix:
-                        # Attempt to explicitly map state value translations
-                        nls_lookup_key = f"{nls_subset_prefix}_{raw_val}"
-                        if nls_lookup_key in nls_data:
-                            print(f"     NLS Definition Mapping: {nls_data[nls_lookup_key]}")
+            msg = f"  -> {control}: uom={uom} ({uom_label}) source={source}"
+            if enum_value is not None and enum_text:
+                msg += f" enum[{enum_value}]={enum_text}"
+            print(msg)
 
 
 if __name__ == "__main__":
