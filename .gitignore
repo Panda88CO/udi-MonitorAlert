@@ -4,7 +4,6 @@ logs/debug.log
 *.lock
 *.pid
 logs/debug.log
-event_stream.jsonl
 *.jsonl
 *.log
 *.gz

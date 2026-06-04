@@ -9,7 +9,6 @@ from udi_interface import Interface, Node, LOGGER, Custom
 import database
 import ml_engine
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
-from event_logger import append_event_line
 from parse_rest import build_control_metadata_records
 
 try:
@@ -124,19 +123,13 @@ def _truncate_file(path):
         LOGGER.warning("Startup cleanup: could not truncate %s: %s", path, exc)
 
 
-def cleanup_startup_files(event_log_file="event_stream.jsonl"):
+def cleanup_startup_files():
     """Clear runtime log/event files so each startup begins with fresh data."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     debug_log_path = os.path.join(base_dir, "logs", "debug.log")
 
     _truncate_file(debug_log_path)
     _truncate_file(EVENT_LOG_PATH)
-
-    if not os.path.isabs(event_log_file):
-        event_log_path = os.path.join(base_dir, event_log_file)
-    else:
-        event_log_path = event_log_file
-    _truncate_file(event_log_path)
 
 def log_event_to_file( node_id, control, value, name, action, event_time):
     """Append a single event-callback record as a JSON line to EVENT_LOG_PATH."""
@@ -176,7 +169,6 @@ MY_EDITORS = {
 # Runtime config notes (PG3x customData):
 # {
 #   "eventSource": "iox",  # set to "nucore" only when NuCore provider is installed/configured
-#   "eventLogFile": "event_stream.jsonl",
 #   "nucore": {
 #     "provider_path": "iox.IoXWrapper",  # or "package.module:FactoryOrClass"
 #     "provider_init": {
@@ -217,7 +209,6 @@ class Controller(Node):
         super(Controller, self).__init__(polyglot, primary, address, name)
         self.poly = polyglot
         self.subscriber = None
-        self.event_log_file = "event_stream.jsonl"
         self.fallback_started = False
         self.control_meta_index = {}
         self.policy_stats = {"audited": 0, "skipped": 0}
@@ -325,11 +316,10 @@ class Controller(Node):
         LOGGER.info("Controller startup beginning: address=%s version=%s", self.address, VERSION)
         custom_data = self.poly.config.get("customData", {})
         if isinstance(custom_data, dict):
-            self.event_log_file = custom_data.get("eventLogFile", self.event_log_file)
             LOGGER.debug("Startup customData keys: %s", sorted(custom_data.keys()))
         LOGGER.debug("Startup customParams keys: %s", sorted(self._get_custom_params().keys()))
 
-        cleanup_startup_files(self.event_log_file)
+        cleanup_startup_files()
 
         LOGGER.info("Initializing SQLite database...")
         database.init_db()
@@ -349,7 +339,6 @@ class Controller(Node):
 
         source = self._get_event_source()
         LOGGER.info(f"Event source selected: {source}")
-        LOGGER.info(f"Event log target: {self.event_log_file}")
         if source == "nucore":
             self._start_nucore_subscriber()
         else:
@@ -912,7 +901,6 @@ class Controller(Node):
         if event.get("value") is None and event.get("action") is not None:
             event["value"] = event.get("action")
 
-        #append_event_line(event, log_file=self.event_log_file)
         #LOGGER.debug("Callback payload (full): %s", json.dumps(event, default=str, separators=(",", ":"), sort_keys=True))
         
         node_id = event.get("node_id")
@@ -1007,7 +995,7 @@ class Controller(Node):
 
 if __name__ == "__main__":
     try:
-        cleanup_startup_files("event_stream.jsonl")
+        cleanup_startup_files()
 
         # Instantiate Polyglot Core
         polyglot = Interface([])
