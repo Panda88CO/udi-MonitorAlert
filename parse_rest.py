@@ -2,6 +2,7 @@ import xml.etree.ElementTree as ET
 import requests
 from requests.auth import HTTPBasicAuth
 import re
+from collections import OrderedDict
 
 # --- CONFIGURATION ---
 ISY_IP = "192.168.1.204"  # Replace with your Polisy / eisy IP
@@ -230,33 +231,147 @@ def _load_profile_assets(rest_base_url, auth, slot):
 
     # Build a control -> candidate editor range list map for this slot.
     control_candidates = {}
+    node_defs = {}
     if nodedef_xml is not None:
-        for st in nodedef_xml.findall(".//nodeDef/sts/st"):
-            control = st.attrib.get("id")
-            editor_id = st.attrib.get("editor")
-            if not control or not editor_id:
+        for node_def in nodedef_xml.findall(".//nodeDef"):
+            node_def_id = node_def.attrib.get("id")
+            if not node_def_id:
                 continue
-            ranges = editors.get(editor_id, [])
-            if not ranges:
-                continue
-            control_candidates.setdefault(control, [])
-            for rng in ranges:
-                control_candidates[control].append({
-                    "editor_id": editor_id,
-                    "uom": rng.get("uom"),
-                    "subset": rng.get("subset"),
-                    "nls": rng.get("nls"),
-                    "min": rng.get("min"),
-                    "max": rng.get("max"),
-                })
+            node_defs[node_def_id] = {"controls": {}}
+
+            for st in node_def.findall(".//sts/st"):
+                control = st.attrib.get("id")
+                editor_id = st.attrib.get("editor")
+                if not control or not editor_id:
+                    continue
+                ranges = editors.get(editor_id, [])
+                if not ranges:
+                    continue
+                node_defs[node_def_id]["controls"].setdefault(control, [])
+                control_candidates.setdefault(control, [])
+                for range_index, rng in enumerate(ranges):
+                    candidate = {
+                        "node_def_id": node_def_id,
+                        "control": control,
+                        "editor_id": editor_id,
+                        "range_index": range_index,
+                        "uom": rng.get("uom"),
+                        "subset": rng.get("subset"),
+                        "nls": rng.get("nls"),
+                        "min": rng.get("min"),
+                        "max": rng.get("max"),
+                    }
+                    node_defs[node_def_id]["controls"][control].append(candidate)
+                    control_candidates[control].append(candidate)
 
     out = {
         "slot": slot,
+        "node_defs": node_defs,
         "control_candidates": control_candidates,
         "nls": nls_map,
     }
     PROFILE_CACHE[cache_key] = out
     return out
+
+
+def _extract_profile_slots(profiles_xml):
+    slots = set()
+    if profiles_xml is None:
+        return slots
+
+    for element in profiles_xml.iter():
+        for raw in element.attrib.values():
+            text = str(raw)
+            for match in re.findall(r"/profiles/ns/(\d+)", text):
+                slots.add(str(int(match)))
+
+        tag_name = str(element.tag).lower()
+        if tag_name.endswith("profile") or tag_name.endswith("slot") or tag_name.endswith("id"):
+            raw_text = (element.text or "").strip()
+            if raw_text.isdigit():
+                slots.add(str(int(raw_text)))
+
+    return slots
+
+
+def _candidate_enum_map(slot_assets, candidate):
+    if not slot_assets or not isinstance(candidate, dict):
+        return None
+    if candidate.get("uom") != 25:
+        return None
+
+    nls_prefix = candidate.get("nls")
+    subset = candidate.get("subset")
+    nls_map = slot_assets.get("nls", {})
+    if not nls_prefix or subset is None or not nls_map:
+        return None
+
+    enum_map = OrderedDict()
+    for raw_value in sorted({str(v) for v in subset}):
+        text = nls_map.get(f"{nls_prefix}-{raw_value}")
+        if text:
+            enum_map[raw_value] = text
+    return dict(enum_map) if enum_map else None
+
+
+def build_profile_catalog_records(rest_base_url, username, password, timeout=10):
+    """Build static profile schema rows from /rest/profiles assets.
+
+    Returns a tuple: (records, stats)
+    records: list[dict] ready for database.bulk_upsert_profile_control_schema(records)
+    """
+    auth = HTTPBasicAuth(username, password)
+    profiles_xml = _fetch_xml_with_auth(f"{rest_base_url}/profiles", auth=auth, timeout=timeout)
+    if profiles_xml is None:
+        return [], {"profile_slots": 0, "node_defs": 0, "controls": 0, "records": 0}
+
+    slots = sorted(_extract_profile_slots(profiles_xml), key=lambda v: int(v))
+    records = []
+    node_def_count = 0
+    control_count = 0
+
+    for slot in slots:
+        slot_assets = _load_profile_assets(rest_base_url, auth, slot)
+        if not slot_assets:
+            continue
+
+        node_defs = slot_assets.get("node_defs", {})
+        node_def_count += len(node_defs)
+
+        for node_def_id, node_def_meta in node_defs.items():
+            controls = node_def_meta.get("controls", {})
+            control_count += len(controls)
+            for control, candidates in controls.items():
+                for candidate in candidates:
+                    allowed_subset = None
+                    subset = candidate.get("subset")
+                    if subset is not None:
+                        allowed_subset = sorted({str(v) for v in subset})
+
+                    uom = _coerce_int(candidate.get("uom"))
+                    records.append({
+                        "profile_slot": str(slot),
+                        "node_def_id": str(node_def_id),
+                        "control": str(control),
+                        "editor_id": candidate.get("editor_id"),
+                        "range_index": _coerce_int(candidate.get("range_index")) or 0,
+                        "uom": uom,
+                        "uom_label": UOM_LABELS.get(uom) if uom is not None else None,
+                        "nls_prefix": candidate.get("nls"),
+                        "min_value": candidate.get("min"),
+                        "max_value": candidate.get("max"),
+                        "allowed_subset": allowed_subset,
+                        "enum_map": _candidate_enum_map(slot_assets, candidate),
+                        "source": "profiles_catalog",
+                    })
+
+    stats = {
+        "profile_slots": len(slots),
+        "node_defs": node_def_count,
+        "controls": control_count,
+        "records": len(records),
+    }
+    return records, stats
 
 
 def _resolve_uom25_enum_text(slot_assets, control, value_str, fallback_text):

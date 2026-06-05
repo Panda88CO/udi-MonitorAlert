@@ -9,7 +9,7 @@ from udi_interface import Interface, Node, LOGGER, Custom
 import database
 import ml_engine
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
-from parse_rest import build_control_metadata_records
+from parse_rest import build_control_metadata_records, build_profile_catalog_records
 
 try:
     from iox_subscriber import IoXEventSubscriber
@@ -52,7 +52,7 @@ EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event
 VERSION = os.getenv("UDI_MONITOR_VERSION", "0.0.2")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
-
+UDI_PROFILE_MATCH_DEBUG = 1
 
 def current_time_ms() -> int:
     return int(datetime.now(timezone.utc).timestamp() * 1000)
@@ -211,6 +211,7 @@ class Controller(Node):
         self.subscriber = None
         self.fallback_started = False
         self.control_meta_index = {}
+        self.profile_control_index = {}
         self._node_value_cache = {}
         self.policy_stats = {"audited": 0, "skipped": 0}
         self.active_node_map = {}
@@ -326,7 +327,9 @@ class Controller(Node):
         database.init_db()
         LOGGER.debug("SQLite initialized; beginning metadata refresh cycle for startup")
         self._run_metadata_refresh_cycle(reason="startup")
+        self.profile_control_index = database.load_profile_control_schema_index()
         self.control_meta_index = database.load_control_metadata_index()
+        LOGGER.info("Loaded profile schema control keys: %s", len(self.profile_control_index))
         LOGGER.info("Loaded control metadata rows: %s", len(self.control_meta_index))
         cfg = self._resolve_iox_connection()
         self._last_connection_fingerprint = (
@@ -345,10 +348,74 @@ class Controller(Node):
         else:
             self._start_iox_subscriber()
 
-    def _get_control_meta(self, node_id, control):
-        if node_id is None or control is None:
+    def _match_profile_candidate(self, candidate, uom=None, value=None):
+        if not isinstance(candidate, dict):
+            return False
+
+        event_uom = _coerce_int(uom)
+        candidate_uom = candidate.get("uom")
+        if event_uom is not None and candidate_uom is not None and int(candidate_uom) != event_uom:
+            return False
+
+        allowed_subset = candidate.get("allowed_subset")
+        if isinstance(allowed_subset, list) and allowed_subset:
+            value_int = _coerce_int(value)
+            raw_candidates = {str(value)}
+            if value_int is not None:
+                raw_candidates.add(str(value_int))
+            allowed_values = set(allowed_subset)
+            return any(raw in allowed_values for raw in raw_candidates)
+
+        value_num = _coerce_float(value)
+        min_value = candidate.get("min_value")
+        max_value = candidate.get("max_value")
+        if value_num is None:
+            return True
+        if min_value is not None and value_num < float(min_value):
+            return False
+        if max_value is not None and value_num > float(max_value):
+            return False
+        return True
+
+    def _select_profile_control_meta(self, control, uom=None, value=None):
+        if control is None:
             return None
-        return self.control_meta_index.get((str(node_id), str(control)))
+
+        candidates = self.profile_control_index.get(str(control)) or []
+        if not candidates:
+            return None
+
+        matches = [c for c in candidates if self._match_profile_candidate(c, uom=uom, value=value)]
+        if matches:
+            return dict(matches[0])
+
+        event_uom = _coerce_int(uom)
+        if event_uom is not None:
+            same_uom = [c for c in candidates if _coerce_int(c.get("uom")) == event_uom]
+            if same_uom:
+                return dict(same_uom[0])
+
+        return dict(candidates[0])
+
+    def _get_control_meta(self, node_id, control, uom=None, value=None):
+        if control is None:
+            return None
+
+        profile_meta = self._select_profile_control_meta(control, uom=uom, value=value)
+        runtime_meta = None
+        if node_id is not None:
+            runtime_meta = self.control_meta_index.get((str(node_id), str(control)))
+
+        if not isinstance(profile_meta, dict) and not isinstance(runtime_meta, dict):
+            return None
+        if not isinstance(profile_meta, dict):
+            return runtime_meta
+        if not isinstance(runtime_meta, dict):
+            return profile_meta
+
+        merged = dict(profile_meta)
+        merged.update(runtime_meta)
+        return merged
 
     def _should_skip_dynamic_event(self, event, control_meta):
         if not isinstance(control_meta, dict):
@@ -483,17 +550,115 @@ class Controller(Node):
                 reason,
                 len(active_map),
             )
+            catalog_refreshed = self._refresh_profile_catalog_with_retry(reason=reason)
             refreshed = self._refresh_metadata_with_retry(active_map, reason=reason)
+            self.profile_control_index = database.load_profile_control_schema_index()
             self.control_meta_index = database.load_control_metadata_index()
             LOGGER.info(
-                "Metadata refresh cycle complete: reason=%s refreshed=%s loaded_rows=%s",
+                "Metadata refresh cycle complete: reason=%s catalog_refreshed=%s refreshed=%s schema_controls=%s loaded_rows=%s",
                 reason,
+                catalog_refreshed,
                 refreshed,
+                len(self.profile_control_index),
                 len(self.control_meta_index),
             )
-            return refreshed
+            return catalog_refreshed or refreshed
         finally:
             self._metadata_refresh_in_progress = False
+
+    def _refresh_profile_catalog_with_retry(self, reason):
+        max_attempts = self._rest_refresh_attempts
+        for attempt in range(1, max_attempts + 1):
+            LOGGER.debug(
+                "Profile catalog refresh attempt starting: reason=%s attempt=%s/%s",
+                reason,
+                attempt,
+                max_attempts,
+            )
+            refreshed = self._refresh_profile_catalog_from_rest_profiles()
+            if refreshed:
+                LOGGER.info(
+                    "Profile catalog refresh succeeded: reason=%s attempt=%s/%s",
+                    reason,
+                    attempt,
+                    max_attempts,
+                )
+                return True
+
+            if attempt >= max_attempts:
+                break
+
+            backoff_s = self._rest_refresh_backoff_s * (2 ** (attempt - 1))
+            LOGGER.warning(
+                "Profile catalog refresh failed: reason=%s attempt=%s/%s retry_in=%.1fs",
+                reason,
+                attempt,
+                max_attempts,
+                backoff_s,
+            )
+            time.sleep(backoff_s)
+
+        LOGGER.warning(
+            "Profile catalog refresh exhausted retries: reason=%s attempts=%s",
+            reason,
+            max_attempts,
+        )
+        return False
+
+    def _refresh_profile_catalog_from_rest_profiles(self):
+        cfg = self._resolve_iox_connection()
+        if not cfg.get("host") or not cfg.get("username") or not cfg.get("password"):
+            LOGGER.info("Skipping profile catalog refresh: missing IoX connection settings.")
+            return False
+
+        scheme = "https" if cfg["secure"] else "http"
+        rest_base_url = f"{scheme}://{cfg['host']}:{cfg['port']}/rest"
+        LOGGER.info("Profile catalog refresh target: %s", rest_base_url)
+
+        try:
+            records, stats = build_profile_catalog_records(
+                rest_base_url=rest_base_url,
+                username=str(cfg["username"]),
+                password=str(cfg["password"]),
+            )
+        except Exception as exc:
+            LOGGER.warning("Profile catalog refresh failed at fetch/parse stage: %s", exc)
+            return False
+
+        if not records:
+            LOGGER.info("Profile catalog refresh returned no records: %s", stats)
+            return False
+
+        try:
+            upserted = database.bulk_upsert_profile_control_schema(records)
+        except Exception as exc:
+            LOGGER.error("Bulk profile catalog upsert failed: %s", exc)
+            return False
+
+        try:
+            slot_counts = database.load_profile_catalog_slot_counts()
+        except Exception as exc:
+            LOGGER.warning("Failed to load profile catalog slot counts: %s", exc)
+            slot_counts = []
+
+        LOGGER.info(
+            "Profile catalog refresh complete: upserted=%s slots=%s node_defs=%s controls=%s",
+            upserted,
+            stats.get("profile_slots", 0),
+            stats.get("node_defs", 0),
+            stats.get("controls", 0),
+        )
+        if slot_counts:
+            for row in slot_counts:
+                LOGGER.info(
+                    "Profile catalog slot summary: slot=%s rows=%s node_defs=%s controls=%s updated_ms=%s",
+                    row.get("profile_slot"),
+                    row.get("row_count"),
+                    row.get("node_def_count"),
+                    row.get("control_count"),
+                    row.get("last_updated_ms"),
+                )
+        return upserted > 0
 
     def _resolve_iox_connection(self):
         custom_data = self.poly.config.get("customData", {})
@@ -930,7 +1095,7 @@ class Controller(Node):
                         enum_value = _coerce_int(value)
 
                     if enum_text is None and enum_value is not None:
-                        existing_meta = self._get_control_meta(node_id, control)
+                        existing_meta = self._get_control_meta(node_id, control, uom=uom, value=value)
                         if isinstance(existing_meta, dict):
                             enum_map = existing_meta.get("enum_map") or {}
                             enum_text = enum_map.get(str(enum_value))
@@ -957,7 +1122,7 @@ class Controller(Node):
 
         event["node_id"] = str(node_id)
         event["control"] = str(control)
-        control_meta = self._get_control_meta(node_id, control)
+        control_meta = self._get_control_meta(node_id, control, uom=uom, value=value)
 
         is_valid = self._validate_value_with_lookup(value, control_meta)
         if is_valid is False:

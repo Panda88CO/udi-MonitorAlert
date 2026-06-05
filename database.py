@@ -381,6 +381,35 @@ def init_db():
         (now_ms,),
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS profile_control_schema (
+            profile_slot TEXT NOT NULL,
+            node_def_id TEXT NOT NULL,
+            control TEXT NOT NULL,
+            editor_id TEXT,
+            range_index INTEGER NOT NULL DEFAULT 0,
+            uom INTEGER,
+            uom_label TEXT,
+            nls_prefix TEXT,
+            min_value REAL,
+            max_value REAL,
+            allowed_subset_id INTEGER,
+            enum_map_json TEXT,
+            source TEXT,
+            updated_ms INTEGER NOT NULL,
+            PRIMARY KEY (profile_slot, node_def_id, control, editor_id, range_index),
+            FOREIGN KEY (allowed_subset_id) REFERENCES allowed_subset_lookup(id)
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_profile_control_slot ON profile_control_schema (profile_slot)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_profile_control_node_def ON profile_control_schema (node_def_id)"
+    )
+
     # Legacy table is no longer used in this project.
     cursor.execute("DROP TABLE IF EXISTS device_logs")
 
@@ -732,6 +761,204 @@ def load_active_filters() -> list[dict[str, Any]]:
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return rows
+
+
+def bulk_upsert_profile_control_schema(
+    records: list[dict[str, Any]],
+    updated_ms: int | None = None,
+) -> int:
+    if not records:
+        return 0
+
+    mark_ms = updated_ms if updated_ms is not None else _now_ms()
+    conn = _connect()
+    cursor = conn.cursor()
+    applied = 0
+
+    try:
+        for rec in records:
+            profile_slot = str(rec.get("profile_slot") or "").strip()
+            node_def_id = str(rec.get("node_def_id") or "").strip()
+            control = str(rec.get("control") or "").strip()
+            editor_id = rec.get("editor_id")
+            range_index = _coerce_int(rec.get("range_index"))
+            if not profile_slot or not node_def_id or not control or range_index is None:
+                continue
+
+            allowed_subset_id, _ = _get_or_create_allowed_subset_id(cursor, rec.get("allowed_subset"))
+            enum_map = rec.get("enum_map")
+            enum_map_json = json.dumps(enum_map, separators=(",", ":")) if enum_map else None
+
+            cursor.execute(
+                """
+                INSERT INTO profile_control_schema (
+                    profile_slot,
+                    node_def_id,
+                    control,
+                    editor_id,
+                    range_index,
+                    uom,
+                    uom_label,
+                    nls_prefix,
+                    min_value,
+                    max_value,
+                    allowed_subset_id,
+                    enum_map_json,
+                    source,
+                    updated_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(profile_slot, node_def_id, control, editor_id, range_index)
+                DO UPDATE SET
+                    uom = excluded.uom,
+                    uom_label = excluded.uom_label,
+                    nls_prefix = excluded.nls_prefix,
+                    min_value = excluded.min_value,
+                    max_value = excluded.max_value,
+                    allowed_subset_id = excluded.allowed_subset_id,
+                    enum_map_json = excluded.enum_map_json,
+                    source = excluded.source,
+                    updated_ms = excluded.updated_ms
+                """,
+                (
+                    profile_slot,
+                    node_def_id,
+                    control,
+                    editor_id,
+                    range_index,
+                    rec.get("uom"),
+                    rec.get("uom_label"),
+                    rec.get("nls_prefix"),
+                    rec.get("min_value"),
+                    rec.get("max_value"),
+                    allowed_subset_id,
+                    enum_map_json,
+                    rec.get("source"),
+                    mark_ms,
+                ),
+            )
+            applied += 1
+
+        conn.commit()
+        return applied
+    finally:
+        conn.close()
+
+
+def load_profile_catalog_slot_counts() -> list[dict[str, Any]]:
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            profile_slot,
+            COUNT(*) AS row_count,
+            COUNT(DISTINCT node_def_id) AS node_def_count,
+            COUNT(DISTINCT control) AS control_count,
+            MAX(updated_ms) AS last_updated_ms
+        FROM profile_control_schema
+        GROUP BY profile_slot
+        ORDER BY CAST(profile_slot AS INTEGER) ASC
+        """
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def load_profile_catalog_records(
+    profile_slot: str | None = None,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    conn = _connect()
+    cursor = conn.cursor()
+
+    sql = """
+        SELECT
+            pcs.profile_slot,
+            pcs.node_def_id,
+            pcs.control,
+            pcs.editor_id,
+            pcs.range_index,
+            pcs.uom,
+            pcs.uom_label,
+            pcs.nls_prefix,
+            pcs.min_value,
+            pcs.max_value,
+            asl.subset_json AS allowed_subset_json,
+            pcs.enum_map_json,
+            pcs.source,
+            pcs.updated_ms
+        FROM profile_control_schema pcs
+        LEFT JOIN allowed_subset_lookup asl ON asl.id = pcs.allowed_subset_id
+    """
+    params: list[Any] = []
+    if profile_slot is not None:
+        sql += " WHERE pcs.profile_slot = ?"
+        params.append(str(profile_slot))
+    sql += " ORDER BY CAST(pcs.profile_slot AS INTEGER) ASC, pcs.node_def_id ASC, pcs.control ASC, pcs.range_index ASC"
+    if limit is not None and limit > 0:
+        sql += " LIMIT ?"
+        params.append(int(limit))
+
+    cursor.execute(sql, tuple(params))
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def load_profile_control_schema_index() -> dict[str, list[dict[str, Any]]]:
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            pcs.profile_slot,
+            pcs.node_def_id,
+            pcs.control,
+            pcs.editor_id,
+            pcs.range_index,
+            pcs.uom,
+            pcs.uom_label,
+            pcs.nls_prefix,
+            pcs.min_value,
+            pcs.max_value,
+            asl.subset_json AS allowed_subset_json,
+            pcs.enum_map_json,
+            pcs.source,
+            pcs.updated_ms
+        FROM profile_control_schema pcs
+        LEFT JOIN allowed_subset_lookup asl ON asl.id = pcs.allowed_subset_id
+        ORDER BY CAST(pcs.profile_slot AS INTEGER) ASC, pcs.node_def_id ASC, pcs.control ASC, pcs.range_index ASC
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    out: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        control = str(row["control"])
+        out.setdefault(control, [])
+        out[control].append(
+            {
+                "profile_slot": row["profile_slot"],
+                "node_def_id": row["node_def_id"],
+                "control": row["control"],
+                "editor_id": row["editor_id"],
+                "range_index": row["range_index"],
+                "uom": row["uom"],
+                "uom_label": row["uom_label"],
+                "nls_prefix": row["nls_prefix"],
+                "min_value": row["min_value"],
+                "max_value": row["max_value"],
+                "allowed_subset": _decode_subset(row["allowed_subset_json"]),
+                "enum_map": _decode_enum_map(row["enum_map_json"]),
+                "source": row["source"],
+                "updated_ms": row["updated_ms"],
+            }
+        )
+
+    return out
 
 
 def upsert_node_activity(
