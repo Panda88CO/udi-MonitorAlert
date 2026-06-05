@@ -211,6 +211,7 @@ class Controller(Node):
         self.subscriber = None
         self.fallback_started = False
         self.control_meta_index = {}
+        self._node_value_cache = {}
         self.policy_stats = {"audited": 0, "skipped": 0}
         self.active_node_map = {}
         self._started = False
@@ -971,6 +972,27 @@ class Controller(Node):
 
         if self._should_skip_dynamic_event(event, control_meta):
             return
+
+        # Deduplication / redundancy filtering
+        node_cache = self._node_value_cache.setdefault(str(node_id), {})
+        is_time = False
+        if str(control) == "TIME" or (isinstance(control_meta, dict) and control_meta.get("is_timestamp_like")):
+            is_time = True
+
+        if node_cache.get(str(control)) == str(value):
+            LOGGER.debug("Dropping redundant event (unchanged): node=%s control=%s value=%s", node_id, control, value)
+            return
+
+        if is_time:
+            last_real_change = node_cache.get("_last_real_change", 0)
+            if event_time - last_real_change > 10000:
+                LOGGER.debug("Dropping redundant time update: node=%s control=%s value=%s", node_id, control, value)
+                node_cache[str(control)] = str(value)
+                return
+        else:
+            node_cache["_last_real_change"] = event_time
+            
+        node_cache[str(control)] = str(value)
 
         try:
             database.insert_dynamic_event(

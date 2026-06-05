@@ -12,3 +12,4 @@ logs/debug.log
 *.db
 /.venv310v1
 /.venv310
+/__pycache__
