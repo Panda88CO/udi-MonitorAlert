@@ -16,6 +16,7 @@ Turn node property history on/off using the following.  The setting persists ove
 - **Parameters**:
   - `node` - Comma-separated list of node addresses (optional)
   - `property` - Comma-separated list of property IDs (optional)
+  - `group` - Comma-separated list of property group names (optional)
   - `start` - Start timestamp (optional)
   - `end` - End timestamp (optional)
   - `onebefore` - Include one record before start timestamp (optional)
@@ -26,6 +27,7 @@ Turn node property history on/off using the following.  The setting persists ove
   
 Here's a sample query, all parameters are optional.  You can specify multiple nodes and/or properties (as comma separated lists)
 /rest/history/node/properties/get?property=CLIHUM,ST&node=1D%206F%2015%201&start=2023-12-16T21:11:50.939221-08:00&oneBefore=true&end=2023-12-16T21:11:50.939221-08:00&oneAfter=true
+/rest/history/node/properties/get?group=MySensorGroup&node=1D%206F%2015%201
 
 ## Request Processing Flow
 
@@ -44,6 +46,7 @@ In `U7ProcessCommand::getNodePropertiesHistory()`:
 1. Parses query parameters:
    - `nodes` - node address filter
    - `properties` - property ID filter
+   - `groups` - property group name filter
    - `dtStart` - start timestamp
    - `dtEnd` - end timestamp
    - `oneBeforeCStr` - boolean for including record before start
@@ -69,6 +72,7 @@ bool rc = ud.nodePropertyHistory->api->getNodePropertyHistoryXml(
     &nothingWritten,
     nodeEventLogCallback.nodes,
     nodeEventLogCallback.properties,
+    nodeEventLogCallback.groups,
     nodeEventLogCallback.dtStart,
     nodeEventLogCallback.dtEnd,
     nodeEventLogCallback.oneBefore,

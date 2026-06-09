@@ -13,3 +13,4 @@ logs/debug.log
 /.venv310v1
 /.venv310
 /__pycache__
+*.pyc
