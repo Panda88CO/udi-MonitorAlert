@@ -233,9 +233,10 @@ class NuCoreEventSubscriber:
             action = event.get("action")
             if isinstance(action, dict) and "value" in action:
                 event["value"] = action.get("value")
-            for key in ["new_value", "action", "val"]:
-                if key in event:
-                    event["value"] = event[key]
-                    break
+            else:
+                for key in ["new_value", "action", "val"]:
+                    if key in event and event[key] is not None:
+                        event["value"] = event[key]
+                        break
 
         return event

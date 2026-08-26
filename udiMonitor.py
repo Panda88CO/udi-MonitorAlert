@@ -5,7 +5,28 @@ import time
 import ipaddress
 from urllib.parse import urlparse
 from datetime import datetime, timezone
-from udi_interface import Interface, Node, LOGGER, Custom
+import logging
+
+try:
+    from udi_interface import Interface, Node, LOGGER, Custom
+except ImportError:
+    class Node:
+        def __init__(self, polyglot=None, primary=None, address=None, name=None):
+            self.poly = polyglot
+            self.primary = primary
+            self.address = address
+            self.name = name
+
+    class Interface:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    class Custom:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    LOGGER = logging.getLogger("udiMonitor")
+
 import database
 import ml_engine
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
@@ -1159,6 +1180,26 @@ class Controller(Node):
             
         node_cache[str(control)] = str(value)
 
+        # Real-time SQLite-powered anomaly evaluation
+        try:
+            is_anomaly, score, details = ml_engine.analyze_datapoint(
+                node_id=str(node_id),
+                new_value=value,
+                control=str(control),
+                event_time_ms=event_time,
+            )
+            if is_anomaly:
+                LOGGER.warning(
+                    "ALERT: Anomaly detected on Node %s [%s]! Value=%s Score=%s Details=%s",
+                    node_id,
+                    control,
+                    value,
+                    score,
+                    details,
+                )
+        except Exception as exc:
+            LOGGER.warning("Anomaly evaluation error: node=%s control=%s err=%s", node_id, control, exc)
+
         try:
             database.insert_dynamic_event(
                 node_id=str(node_id),
@@ -1168,12 +1209,6 @@ class Controller(Node):
             )
         except Exception as exc:
             LOGGER.warning("Failed dynamic event insert: node=%s control=%s err=%s", node_id, control, exc)
-
-        # Placeholder ML remains optional/log-only for now.
-        #is_anomaly, score = ml_engine.analyze_datapoint(node_id, value)
-
-        #if is_anomaly:
-        #    LOGGER.warn(f"ALERT: Anomaly detected on Node {node_id}! Score: {score}")
 
 
 # =========================================================================

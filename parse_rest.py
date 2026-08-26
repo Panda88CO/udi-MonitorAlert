@@ -1,16 +1,21 @@
 import xml.etree.ElementTree as ET
-import requests
-from requests.auth import HTTPBasicAuth
 import re
 from collections import OrderedDict
 
-# --- CONFIGURATION ---
-ISY_IP = "192.168.1.204"  # Replace with your Polisy / eisy IP
-USERNAME = "christian.olgaard@gmail.com"
-PASSWORD = "coe123COE"
+try:
+    import requests
+    from requests.auth import HTTPBasicAuth
+except ImportError:
+    requests = None
+    HTTPBasicAuth = None
+
+# --- CONFIGURATION (Default fallback when run standalone) ---
+ISY_IP = "192.168.1.204"
+USERNAME = "admin"
+PASSWORD = "password"
 
 BASE_URL = f"http://{ISY_IP}/rest"
-AUTH = HTTPBasicAuth(USERNAME, PASSWORD)
+AUTH = HTTPBasicAuth(USERNAME, PASSWORD) if HTTPBasicAuth else None
 
 # Global caches so we only download profile assets once per slot
 PROFILE_CACHE = {}  # Format: { profile_id: { "node_defs": {...}, "nls": {...} } }

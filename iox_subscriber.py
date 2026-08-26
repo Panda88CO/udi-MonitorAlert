@@ -2,10 +2,14 @@ import threading
 import base64
 import ssl
 import importlib
-import websocket
 import xml.etree.ElementTree as ET
 import logging
 from datetime import datetime, timezone
+
+try:
+    import websocket
+except ImportError:
+    websocket = None
 
 try:
     _udi_module = importlib.import_module("udi_interface")

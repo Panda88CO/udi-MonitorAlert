@@ -1147,3 +1147,180 @@ def event_passes_filters(
     return True
 
 
+def get_sensor_baseline(
+    node_id: str,
+    control: str,
+    window_ms: int | None = None,
+    current_time_ms: int | None = None,
+) -> dict[str, Any] | None:
+    """Compute count, mean, stddev, min, and max in SQLite for a given sensor control."""
+    if not node_id or not control:
+        return None
+
+    conn = _connect()
+    cursor = conn.cursor()
+    if window_ms is not None and window_ms > 0:
+        base_ms = current_time_ms if current_time_ms is not None else _now_ms()
+        cutoff_ms = base_ms - int(window_ms)
+        cursor.execute(
+            """
+            SELECT
+                COUNT(*) AS count,
+                AVG(value) AS mean,
+                SQRT(AVG(value * value) - AVG(value) * AVG(value)) AS stddev,
+                MIN(value) AS min_val,
+                MAX(value) AS max_val
+            FROM events_dynamic
+            WHERE node_id = ? AND control = ? AND event_time_ms >= ?
+            """,
+            (str(node_id), str(control), cutoff_ms),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT
+                COUNT(*) AS count,
+                AVG(value) AS mean,
+                SQRT(AVG(value * value) - AVG(value) * AVG(value)) AS stddev,
+                MIN(value) AS min_val,
+                MAX(value) AS max_val
+            FROM events_dynamic
+            WHERE node_id = ? AND control = ?
+            """,
+            (str(node_id), str(control)),
+        )
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row or row["count"] is None or row["count"] == 0:
+        return None
+
+    return {
+        "count": int(row["count"]),
+        "mean": float(row["mean"]) if row["mean"] is not None else 0.0,
+        "stddev": float(row["stddev"]) if row["stddev"] is not None else 0.0,
+        "min": float(row["min_val"]) if row["min_val"] is not None else 0.0,
+        "max": float(row["max_val"]) if row["max_val"] is not None else 0.0,
+    }
+
+
+def get_last_event(node_id: str, control: str) -> dict[str, Any] | None:
+    """Retrieve the most recent dynamic event for a given node and control."""
+    if not node_id or not control:
+        return None
+
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, event_time_ms, node_id, control, value
+        FROM events_dynamic
+        WHERE node_id = ? AND control = ?
+        ORDER BY event_time_ms DESC, id DESC
+        LIMIT 1
+        """,
+        (str(node_id), str(control)),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return dict(row)
+
+
+def find_historical_outliers(
+    min_z_score: float = 3.0,
+    min_samples: int = 15,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Scan all events in SQLite and return data points exceeding the Z-score threshold."""
+    conn = _connect()
+    cursor = conn.cursor()
+    sql = """
+        WITH stats AS (
+            SELECT
+                node_id,
+                control,
+                COUNT(*) AS cnt,
+                AVG(value) AS mean_val,
+                SQRT(AVG(value * value) - AVG(value) * AVG(value)) AS std_val
+            FROM events_dynamic
+            GROUP BY node_id, control
+            HAVING COUNT(*) >= ? AND std_val > 0.0001
+        )
+        SELECT
+            e.id,
+            e.event_time_ms,
+            e.node_id,
+            e.control,
+            s.name,
+            s.uom,
+            s.uom_label,
+            e.value,
+            st.mean_val AS baseline_mean,
+            st.std_val AS baseline_std,
+            st.cnt AS sample_count,
+            (ABS(e.value - st.mean_val) / st.std_val) AS z_score
+        FROM events_dynamic e
+        JOIN stats st ON e.node_id = st.node_id AND e.control = st.control
+        LEFT JOIN node_control_static s ON e.node_id = s.node_id AND e.control = s.control
+        WHERE (ABS(e.value - st.mean_val) / st.std_val) >= ?
+        ORDER BY z_score DESC
+        LIMIT ?
+    """
+    cursor.execute(sql, (int(min_samples), float(min_z_score), int(limit)))
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def find_historical_spikes(
+    max_time_delta_sec: float = 60.0,
+    min_value_delta: float = 10.0,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    """Scan events in SQLite using window LAG() to find sudden rate-of-change spikes."""
+    conn = _connect()
+    cursor = conn.cursor()
+    max_time_delta_ms = int(max_time_delta_sec * 1000)
+    sql = """
+        WITH time_deltas AS (
+            SELECT
+                id,
+                event_time_ms,
+                node_id,
+                control,
+                value,
+                LAG(value) OVER (PARTITION BY node_id, control ORDER BY event_time_ms) AS prev_value,
+                LAG(event_time_ms) OVER (PARTITION BY node_id, control ORDER BY event_time_ms) AS prev_time_ms
+            FROM events_dynamic
+        )
+        SELECT
+            d.id,
+            d.event_time_ms,
+            d.node_id,
+            d.control,
+            s.name,
+            s.uom,
+            s.uom_label,
+            d.prev_value,
+            d.value,
+            ABS(d.value - d.prev_value) AS delta_value,
+            (d.event_time_ms - d.prev_time_ms) / 1000.0 AS delta_seconds,
+            ABS(d.value - d.prev_value) / ((d.event_time_ms - d.prev_time_ms) / 1000.0) AS rate_per_second
+        FROM time_deltas d
+        LEFT JOIN node_control_static s ON d.node_id = s.node_id AND d.control = s.control
+        WHERE d.prev_value IS NOT NULL
+          AND (d.event_time_ms - d.prev_time_ms) > 0
+          AND (d.event_time_ms - d.prev_time_ms) <= ?
+          AND ABS(d.value - d.prev_value) >= ?
+        ORDER BY rate_per_second DESC
+        LIMIT ?
+    """
+    cursor.execute(sql, (max_time_delta_ms, float(min_value_delta), int(limit)))
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+

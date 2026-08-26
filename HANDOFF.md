@@ -1,53 +1,36 @@
 # Handoff
 
 ## Project Goal
-Build a PG3x Python node server for Universal Devices eISY that monitors event changes from NuCore/IoX, logs callback events to JSONL and SQLite, and later adds filtering/reporting and ML-based outlier detection.
+Build a PG3x Python node server for Universal Devices eISY that monitors event changes from NuCore/IoX, logs callback events to JSONL and SQLite, and provides in-database statistical outlier and anomaly detection.
 
 ## Current State
-- Phase 1 is complete.
-- Phase 2 bootstrap is in progress.
-- NuCore is the preferred event source.
-- IoX remains a fallback if NuCore startup fails.
-- Callback event logging is append-only JSON Lines, one event per line.
+- Phase 1 and Phase 2 are complete.
+- In-database SQLite anomaly and outlier engine is operational and tested.
+- NuCore is the preferred event source; IoX WebSocket is the fallback.
+- Full automated test suite (30 unit tests) passes cleanly in local and CI environments.
 
 ## Completed Work
-- Fixed `manifest.json` to valid JSON and updated the entrypoint to `udiMonitor.py`.
-- Cleaned `requirements.txt` to only include runtime dependencies.
-- Simplified `udiMonitor.py` to a single controller nodedef (`ML_CTRL`).
-- Added `nucore_subscriber.py` for NuCore callback integration.
-- Added `README.md` and `LICENSE.md`.
-- Added `STATUS.md` as a GitHub-visible progress file.
+- Fixed `manifest.json` to valid JSON with `udiMonitor.py` entrypoint.
+- Added in-database statistical baselines ($\mu$, $\sigma$) and sliding-window calculations in `database.py`.
+- Added $Z$-score and step/velocity spike detection in `ml_engine.py`.
+- Wired real-time anomaly evaluation into `udiMonitor.py`.
+- Created interactive CLI inspection tool (`import sqlite3.py`).
+- Added 30 automated unit tests across 5 test suites (`test_anomaly_detection.py`, `test_database.py`, `test_udimonitor_helpers.py`, `test_subscribers.py`, `test_parse_rest.py`).
+- Fixed `_normalize_event` action dictionary parsing in `nucore_subscriber.py`.
+- Updated `README.md` and added `.github/instructions/python.instructions.md`.
 
 ## Runtime Target
 - eISY / PG3x only.
 - NuCore callback integration preferred.
-- Callback JSONL plus SQLite logging first, filtering/reporting later.
+- SQLite-powered analytics running native C queries inside `history.db`.
 
-## NuCore Config Shape
-Use PG3x customData like this:
-
-```json
-{
-  "eventSource": "nucore",
-  "nucore": {
-    "provider_path": "iox.IoXWrapper",
-    "provider_init": {
-      "base_url": "https://YOUR_EISY_IP",
-      "username": "admin",
-      "password": "YOUR_PASSWORD",
-      "json_output": true,
-      "prompt_format_type": "shared-features"
-    }
-  }
-}
+## Verification
+Run all unit tests:
+```sh
+python -m unittest discover -v
 ```
 
-## Next Steps
-1. Validate NuCore callback wiring on eISY with the real provider path.
-2. Confirm callback event lines are written to `event_callback.jsonl`.
-3. Confirm SQLite event logging still works from the same event path.
-4. Add filtering, reporting, and controller telemetry later.
-
-## Notes
-- Session memory is local to this Copilot environment and does not move with the repo.
-- This file is the portable source of truth for continuing on another machine.
+Run SQLite data & anomaly report:
+```sh
+python "import sqlite3.py"
+```
