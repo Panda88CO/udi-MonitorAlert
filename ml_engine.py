@@ -145,3 +145,275 @@ def analyze_datapoint(
         "stddev": round(stddev, 2),
         "sample_count": count,
     }
+
+
+def _is_task_in_cooldown(task: dict[str, Any], now_ms: int) -> bool:
+    last_trig = task.get("last_triggered_ms")
+    if not last_trig:
+        return False
+    cooldown = task.get("cooldown_ms", 3600000)
+    return (now_ms - last_trig) < cooldown
+
+
+def evaluate_live_event_tasks(
+    node_id: str,
+    control: str,
+    new_value: Any,
+    event_time_ms: int | None = None,
+    tasks: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Evaluate live event against configured monitor tasks (Spike, Contextual Hourly, Threshold).
+
+    Returns list of triggered anomaly dicts.
+    """
+    val = _coerce_float(new_value)
+    if val is None or not node_id or not control:
+        return []
+
+    now_ms = event_time_ms if event_time_ms is not None else int(database._now_ms())
+    active_tasks = tasks if tasks is not None else database.load_active_monitor_tasks()
+    triggered = []
+
+    # Filter tasks matching node_id and control
+    matching_tasks = [
+        t for t in active_tasks
+        if database._match_pattern(node_id, t.get("node_id_pattern", "*"))
+        and database._match_pattern(control, t.get("control_pattern", "*"))
+        and t.get("task_type") in ("spike", "contextual_hourly", "threshold")
+    ]
+
+    for task in matching_tasks:
+        task_id = task["task_id"]
+        task_type = task["task_type"]
+        params = task.get("params") or {}
+
+        if _is_task_in_cooldown(task, now_ms):
+            continue
+
+        if task_type == "spike":
+            z_thresh = float(params.get("z_threshold", DEFAULT_Z_THRESHOLD))
+            min_samples = int(params.get("min_samples", DEFAULT_MIN_SAMPLES))
+            check_spikes = bool(params.get("check_spikes", True))
+
+            is_anom, score, details = analyze_datapoint(
+                node_id=node_id,
+                new_value=val,
+                control=control,
+                event_time_ms=now_ms,
+                z_threshold=z_thresh,
+                min_samples=min_samples,
+                check_spikes=check_spikes,
+            )
+
+            # Check static ceiling threshold if specified in params
+            max_val = params.get("max_value")
+            if max_val is not None and val > float(max_val):
+                is_anom = True
+                score = max(score, 90)
+                details["type"] = "max_threshold_exceeded"
+                details["max_threshold"] = float(max_val)
+                details["current_value"] = val
+
+            if is_anom:
+                database.record_task_triggered(task_id, now_ms)
+                triggered.append({
+                    "task_id": task_id,
+                    "task_name": task.get("name") or task_id,
+                    "task_type": "spike",
+                    "severity": task.get("severity", "warning"),
+                    "node_id": node_id,
+                    "control": control,
+                    "value": val,
+                    "score": score,
+                    "details": details,
+                    "timestamp_ms": now_ms,
+                })
+
+        elif task_type == "contextual_hourly":
+            z_thresh = float(params.get("z_threshold", DEFAULT_Z_THRESHOLD))
+            min_samples = int(params.get("min_samples", 5))
+            window_days = int(params.get("window_days", 30))
+
+            # Derive hour of day (0-23) in UTC
+            from datetime import datetime, timezone
+            dt = datetime.fromtimestamp(now_ms / 1000.0, tz=timezone.utc)
+            hour = dt.hour
+
+            baseline = database.get_hourly_sensor_baseline(
+                node_id=node_id,
+                control=control,
+                hour_of_day=hour,
+                window_days=window_days,
+                current_time_ms=now_ms,
+            )
+
+            if baseline and baseline.get("count", 0) >= min_samples and baseline.get("stddev", 0.0) > 1e-4:
+                mean = baseline["mean"]
+                std = baseline["stddev"]
+                z = calculate_z_score(val, mean, std)
+                if z >= z_thresh:
+                    score = calculate_anomaly_score(z, threshold=z_thresh)
+                    database.record_task_triggered(task_id, now_ms)
+                    triggered.append({
+                        "task_id": task_id,
+                        "task_name": task.get("name") or task_id,
+                        "task_type": "contextual_hourly",
+                        "severity": task.get("severity", "warning"),
+                        "node_id": node_id,
+                        "control": control,
+                        "value": val,
+                        "score": score,
+                        "details": {
+                            "hour_of_day": hour,
+                            "z_score": round(z, 2),
+                            "hourly_mean": round(mean, 2),
+                            "hourly_std": round(std, 2),
+                            "sample_count": baseline["count"],
+                        },
+                        "timestamp_ms": now_ms,
+                    })
+
+        elif task_type == "threshold":
+            min_val = params.get("min_value")
+            max_val = params.get("max_value")
+            violation = False
+            reason = ""
+            if min_val is not None and val < float(min_val):
+                violation = True
+                reason = f"value {val} below minimum threshold {min_val}"
+            elif max_val is not None and val > float(max_val):
+                violation = True
+                reason = f"value {val} above maximum threshold {max_val}"
+
+            if violation:
+                database.record_task_triggered(task_id, now_ms)
+                triggered.append({
+                    "task_id": task_id,
+                    "task_name": task.get("name") or task_id,
+                    "task_type": "threshold",
+                    "severity": task.get("severity", "warning"),
+                    "node_id": node_id,
+                    "control": control,
+                    "value": val,
+                    "score": 85,
+                    "details": {"reason": reason, "current_value": val},
+                    "timestamp_ms": now_ms,
+                })
+
+    # If no explicit tasks were defined for this sensor, perform default autonomous spike check
+    if not matching_tasks:
+        is_anom, score, details = analyze_datapoint(
+            node_id=node_id,
+            new_value=val,
+            control=control,
+            event_time_ms=now_ms,
+        )
+        if is_anom:
+            triggered.append({
+                "task_id": f"auto_{node_id}_{control}",
+                "task_name": f"Autonomous Outlier ({node_id})",
+                "task_type": "autonomous_spike",
+                "severity": "warning",
+                "node_id": node_id,
+                "control": control,
+                "value": val,
+                "score": score,
+                "details": details,
+                "timestamp_ms": now_ms,
+            })
+
+    return triggered
+
+
+def evaluate_periodic_tasks(
+    tasks: list[dict[str, Any]] | None = None,
+    now_ms: int | None = None,
+) -> list[dict[str, Any]]:
+    """Evaluate periodic/scheduled tasks (Stuck Node Watchdogs and Slow Creep/Leak detection).
+
+    Returns list of triggered anomaly dicts.
+    """
+    current_ms = now_ms if now_ms is not None else int(database._now_ms())
+    active_tasks = tasks if tasks is not None else database.load_active_monitor_tasks()
+    triggered = []
+
+    for task in active_tasks:
+        task_id = task["task_id"]
+        task_type = task["task_type"]
+        params = task.get("params") or {}
+        node_pattern = task.get("node_id_pattern", "*")
+        ctrl_pattern = task.get("control_pattern", "*")
+
+        if _is_task_in_cooldown(task, current_ms):
+            continue
+
+        if task_type == "stuck_watchdog":
+            max_silent_minutes = float(params.get("max_silent_minutes", 120))
+            max_silent_ms = int(max_silent_minutes * 60000)
+
+            stuck_nodes = database.check_stuck_nodes_query(
+                node_pattern=node_pattern,
+                control_pattern=ctrl_pattern,
+                max_silent_ms=max_silent_ms,
+                now_ms=current_ms,
+            )
+
+            for item in stuck_nodes:
+                database.record_task_triggered(task_id, current_ms)
+                triggered.append({
+                    "task_id": task_id,
+                    "task_name": task.get("name") or task_id,
+                    "task_type": "stuck_watchdog",
+                    "severity": task.get("severity", "warning"),
+                    "node_id": item["node_id"],
+                    "control": item["control"],
+                    "value": item.get("last_value"),
+                    "score": 90,
+                    "details": {
+                        "silent_minutes": round(item["silent_minutes"], 1),
+                        "max_allowed_minutes": max_silent_minutes,
+                        "last_seen_ms": item["last_seen_ms"],
+                    },
+                    "timestamp_ms": current_ms,
+                })
+                break  # Record one alert per task run
+
+        elif task_type == "slow_creep":
+            window_minutes = int(params.get("window_minutes", 180))
+            max_zero_threshold = float(params.get("max_zero_threshold", 0.05))
+            min_samples = int(params.get("min_samples", 5))
+
+            window_start_ms = current_ms - (window_minutes * 60000)
+            window_end_ms = current_ms
+
+            # Query single target node if pattern is exact, or matching nodes
+            result = database.check_slow_creep_query(
+                node_id=node_pattern,
+                control=ctrl_pattern,
+                window_start_ms=window_start_ms,
+                window_end_ms=window_end_ms,
+                max_zero_threshold=max_zero_threshold,
+                min_samples=min_samples,
+            )
+
+            if result:
+                database.record_task_triggered(task_id, current_ms)
+                triggered.append({
+                    "task_id": task_id,
+                    "task_name": task.get("name") or task_id,
+                    "task_type": "slow_creep",
+                    "severity": task.get("severity", "warning"),
+                    "node_id": node_pattern,
+                    "control": ctrl_pattern,
+                    "value": result["min_value"],
+                    "score": 85,
+                    "details": {
+                        "min_value_observed": result["min_value"],
+                        "threshold": max_zero_threshold,
+                        "sample_count": result["sample_count"],
+                        "window_minutes": window_minutes,
+                    },
+                    "timestamp_ms": current_ms,
+                })
+
+    return triggered

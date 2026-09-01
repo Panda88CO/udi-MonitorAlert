@@ -87,6 +87,32 @@ def run_analysis_report():
             t_str = format_time_ms(s["event_time_ms"])
             print(f"{t_str:<23} {s['node_id']:<22} {s['control']:<8} {s['prev_value']:>7.1f} {s['value']:>7.1f} {s['delta_value']:>7.1f} {s['delta_seconds']:>6.1f} {s['rate_per_second']:>9.2f}")
 
+    # 5. Configured Monitor Tasks
+    print("\n--- 5. CONFIGURED MONITOR TASKS (monitor_tasks table) ---")
+    tasks = database.load_active_monitor_tasks()
+    if not tasks:
+        print("  No custom monitor tasks configured. (Autonomous statistical checking is active).")
+    else:
+        tsk_hdr = f"{'Task ID':<18} {'Type':<18} {'Node Pattern':<22} {'Ctrl':<8} {'Severity':<10}"
+        print(tsk_hdr)
+        print("-" * len(tsk_hdr))
+        for t in tasks:
+            print(f"{t['task_id']:<18} {t['task_type']:<18} {t['node_id_pattern']:<22} {t['control_pattern']:<8} {t['severity']:<10}")
+
+    # 6. Stuck Node Watchdog Diagnostics
+    print("\n--- 6. STUCK NODE WATCHDOG (Nodes silent for > 2 hours) ---")
+    stuck = database.check_stuck_nodes_query(node_pattern="*", control_pattern="*", max_silent_ms=7200000)
+    if not stuck:
+        print("  All nodes have reported events recently.")
+    else:
+        stk_hdr = f"{'Node ID':<22} {'Control':<10} {'Sensor Name':<25} {'Last Value':>10} {'Silent (Hours)':>15}"
+        print(stk_hdr)
+        print("-" * len(stk_hdr))
+        for st in stuck[:10]:
+            name_trunc = (str(st['name'])[:22] + "...") if len(str(st['name'])) > 25 else str(st['name'])
+            silent_hours = st['silent_minutes'] / 60.0
+            print(f"{st['node_id']:<22} {st['control']:<10} {name_trunc:<25} {st['last_value'] if st['last_value'] is not None else 'N/A':>10} {silent_hours:>15.1f}h")
+
     print("\n" + "=" * 80)
 
 

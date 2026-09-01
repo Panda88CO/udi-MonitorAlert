@@ -3,6 +3,7 @@ import os
 import json
 import time
 import ipaddress
+import threading
 from urllib.parse import urlparse
 from datetime import datetime, timezone
 import logging
@@ -249,6 +250,9 @@ class Controller(Node):
         )
         # Modes: off, audit, enforce. Audit is default to avoid accidental data loss.
         self.timestamp_policy_mode = str(os.getenv("UDI_TIMESTAMP_POLICY_MODE", "audit")).strip().lower()
+        self.active_tasks = []
+        self._watchdog_thread = None
+        self._watchdog_stop_event = threading.Event()
         self.custom_params = Custom(self.poly, "customparams")
         # Explicitly bind lifecycle handlers so startup always runs under PG3x.
         self.poly.subscribe(self.poly.START, self.start, self.address)
@@ -328,6 +332,7 @@ class Controller(Node):
         return True
 
     def stop(self):
+        self._stop_watchdog_loop()
         LOGGER.info(
             "Controller stop received. timestamp_policy_mode=%s audited=%s skipped=%s",
             self.timestamp_policy_mode,
@@ -352,6 +357,22 @@ class Controller(Node):
         self.control_meta_index = database.load_control_metadata_index()
         LOGGER.info("Loaded profile schema control keys: %s", len(self.profile_control_index))
         LOGGER.info("Loaded control metadata rows: %s", len(self.control_meta_index))
+
+        # Synchronize configured monitor tasks from customData if present
+        if isinstance(custom_data, dict) and "monitors" in custom_data:
+            try:
+                synced = database.bulk_upsert_monitor_tasks(custom_data["monitors"])
+                LOGGER.info("Synchronized monitor tasks from customData: count=%s", synced)
+            except Exception as exc:
+                LOGGER.warning("Failed to synchronize monitor tasks from customData: %s", exc)
+
+        try:
+            self.active_tasks = database.load_active_monitor_tasks()
+            LOGGER.info("Loaded active monitor tasks: count=%s", len(self.active_tasks))
+        except Exception as exc:
+            LOGGER.warning("Failed to load active monitor tasks: %s", exc)
+            self.active_tasks = []
+
         cfg = self._resolve_iox_connection()
         self._last_connection_fingerprint = (
             str(cfg.get("host") or ""),
@@ -362,12 +383,50 @@ class Controller(Node):
         )
         self._started = True
 
+        self._start_watchdog_loop()
+
         source = self._get_event_source()
         LOGGER.info(f"Event source selected: {source}")
         if source == "nucore":
             self._start_nucore_subscriber()
         else:
             self._start_iox_subscriber()
+
+    def _start_watchdog_loop(self):
+        interval_s = max(10, _coerce_int(os.getenv("UDI_WATCHDOG_INTERVAL_S")) or 60)
+        LOGGER.info("Starting background watchdog loop (interval=%ss)...", interval_s)
+        self._watchdog_stop_event.clear()
+        self._watchdog_thread = threading.Thread(
+            target=self._watchdog_worker,
+            args=(interval_s,),
+            daemon=True,
+            name="WatchdogWorker",
+        )
+        self._watchdog_thread.start()
+
+    def _stop_watchdog_loop(self):
+        if self._watchdog_thread and self._watchdog_thread.is_alive():
+            LOGGER.info("Stopping background watchdog loop...")
+            self._watchdog_stop_event.set()
+            self._watchdog_thread.join(timeout=2.0)
+
+    def _watchdog_worker(self, interval_s):
+        while not self._watchdog_stop_event.wait(timeout=interval_s):
+            try:
+                self.active_tasks = database.load_active_monitor_tasks()
+                triggered = ml_engine.evaluate_periodic_tasks(tasks=self.active_tasks)
+                for anom in triggered:
+                    LOGGER.warning(
+                        "PERIODIC ALERT [%s]: %s (node=%s control=%s score=%s details=%s)",
+                        anom.get("severity", "warning").upper(),
+                        anom.get("task_name"),
+                        anom.get("node_id"),
+                        anom.get("control"),
+                        anom.get("score"),
+                        anom.get("details"),
+                    )
+            except Exception as exc:
+                LOGGER.warning("Watchdog worker cycle error: %s", exc)
 
     def _match_profile_candidate(self, candidate, uom=None, value=None):
         if not isinstance(candidate, dict):
@@ -1180,22 +1239,25 @@ class Controller(Node):
             
         node_cache[str(control)] = str(value)
 
-        # Real-time SQLite-powered anomaly evaluation
+        # Real-time multi-task and statistical anomaly evaluation
         try:
-            is_anomaly, score, details = ml_engine.analyze_datapoint(
+            triggered = ml_engine.evaluate_live_event_tasks(
                 node_id=str(node_id),
-                new_value=value,
                 control=str(control),
+                new_value=value,
                 event_time_ms=event_time,
+                tasks=self.active_tasks,
             )
-            if is_anomaly:
+            for anom in triggered:
                 LOGGER.warning(
-                    "ALERT: Anomaly detected on Node %s [%s]! Value=%s Score=%s Details=%s",
-                    node_id,
-                    control,
+                    "ALERT [%s]: %s (node=%s control=%s value=%s score=%s details=%s)",
+                    anom.get("severity", "warning").upper(),
+                    anom.get("task_name"),
+                    anom.get("node_id"),
+                    anom.get("control"),
                     value,
-                    score,
-                    details,
+                    anom.get("score"),
+                    anom.get("details"),
                 )
         except Exception as exc:
             LOGGER.warning("Anomaly evaluation error: node=%s control=%s err=%s", node_id, control, exc)

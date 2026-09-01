@@ -410,6 +410,8 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_profile_control_node_def ON profile_control_schema (node_def_id)"
     )
 
+    _ensure_monitor_tasks_schema(cursor)
+
     # Legacy table is no longer used in this project.
     cursor.execute("DROP TABLE IF EXISTS device_logs")
 
@@ -1321,6 +1323,330 @@ def find_historical_spikes(
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return rows
+
+
+def _ensure_monitor_tasks_schema(cursor: sqlite3.Cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS monitor_tasks (
+            task_id TEXT PRIMARY KEY,
+            name TEXT,
+            task_type TEXT NOT NULL,
+            node_id_pattern TEXT NOT NULL,
+            control_pattern TEXT NOT NULL,
+            params_json TEXT NOT NULL DEFAULT '{}',
+            severity TEXT NOT NULL DEFAULT 'warning',
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_triggered_ms INTEGER,
+            cooldown_ms INTEGER NOT NULL DEFAULT 3600000,
+            updated_ms INTEGER NOT NULL
+        )
+        """
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_monitor_tasks_enabled_type ON monitor_tasks (enabled, task_type)"
+    )
+
+
+def upsert_monitor_task(
+    task_id: str,
+    task_type: str,
+    node_id_pattern: str,
+    control_pattern: str,
+    name: str | None = None,
+    params: dict[str, Any] | None = None,
+    severity: str = "warning",
+    enabled: bool = True,
+    cooldown_ms: int = 3600000,
+    updated_ms: int | None = None,
+) -> dict[str, Any] | None:
+    task_key = str(task_id or "").strip()
+    type_str = str(task_type or "").strip().lower()
+    if not task_key or not type_str:
+        return None
+
+    now = updated_ms if updated_ms is not None else _now_ms()
+    params_json = json.dumps(params or {}, separators=(",", ":"))
+
+    conn = _connect()
+    cursor = conn.cursor()
+    _ensure_monitor_tasks_schema(cursor)
+    cursor.execute(
+        """
+        INSERT INTO monitor_tasks (
+            task_id, name, task_type, node_id_pattern, control_pattern,
+            params_json, severity, enabled, cooldown_ms, updated_ms
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(task_id)
+        DO UPDATE SET
+            name = COALESCE(excluded.name, monitor_tasks.name),
+            task_type = excluded.task_type,
+            node_id_pattern = excluded.node_id_pattern,
+            control_pattern = excluded.control_pattern,
+            params_json = excluded.params_json,
+            severity = excluded.severity,
+            enabled = excluded.enabled,
+            cooldown_ms = excluded.cooldown_ms,
+            updated_ms = excluded.updated_ms
+        """,
+        (
+            task_key,
+            name,
+            type_str,
+            str(node_id_pattern or "*"),
+            str(control_pattern or "*"),
+            params_json,
+            severity.lower(),
+            1 if enabled else 0,
+            cooldown_ms,
+            now,
+        ),
+    )
+    conn.commit()
+    cursor.execute("SELECT * FROM monitor_tasks WHERE task_id = ?", (task_key,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    d = dict(row)
+    try:
+        d["params"] = json.loads(d.get("params_json") or "{}")
+    except Exception:
+        d["params"] = {}
+    return d
+
+
+def bulk_upsert_monitor_tasks(
+    records: list[dict[str, Any]],
+    updated_ms: int | None = None,
+) -> int:
+    if not records:
+        return 0
+
+    applied = 0
+    now = updated_ms if updated_ms is not None else _now_ms()
+    conn = _connect()
+    cursor = conn.cursor()
+    _ensure_monitor_tasks_schema(cursor)
+    try:
+        for r in records:
+            task_key = str(r.get("task_id") or r.get("id") or "").strip()
+            type_str = str(r.get("task_type") or r.get("type") or "").strip().lower()
+            if not task_key or not type_str:
+                continue
+
+            node_pattern = str(r.get("node_id_pattern") or r.get("node_id") or "*")
+            ctrl_pattern = str(r.get("control_pattern") or r.get("control") or "*")
+            params = r.get("params") or {}
+            params_json = json.dumps(params, separators=(",", ":"))
+            severity = str(r.get("severity") or "warning").lower()
+            enabled = 1 if r.get("enabled", True) else 0
+            cooldown_ms = _coerce_int(r.get("cooldown_ms")) or 3600000
+            name = r.get("name")
+
+            cursor.execute(
+                """
+                INSERT INTO monitor_tasks (
+                    task_id, name, task_type, node_id_pattern, control_pattern,
+                    params_json, severity, enabled, cooldown_ms, updated_ms
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(task_id)
+                DO UPDATE SET
+                    name = COALESCE(excluded.name, monitor_tasks.name),
+                    task_type = excluded.task_type,
+                    node_id_pattern = excluded.node_id_pattern,
+                    control_pattern = excluded.control_pattern,
+                    params_json = excluded.params_json,
+                    severity = excluded.severity,
+                    enabled = excluded.enabled,
+                    cooldown_ms = excluded.cooldown_ms,
+                    updated_ms = excluded.updated_ms
+                """,
+                (
+                    task_key,
+                    name,
+                    type_str,
+                    node_pattern,
+                    ctrl_pattern,
+                    params_json,
+                    severity,
+                    enabled,
+                    cooldown_ms,
+                    now,
+                ),
+            )
+            applied += 1
+        conn.commit()
+        return applied
+    finally:
+        conn.close()
+
+
+def load_active_monitor_tasks() -> list[dict[str, Any]]:
+    conn = _connect()
+    cursor = conn.cursor()
+    _ensure_monitor_tasks_schema(cursor)
+    cursor.execute(
+        """
+        SELECT task_id, name, task_type, node_id_pattern, control_pattern,
+               params_json, severity, enabled, last_triggered_ms, cooldown_ms, updated_ms
+        FROM monitor_tasks
+        WHERE enabled = 1
+        ORDER BY task_id ASC
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["params"] = json.loads(d.get("params_json") or "{}")
+        except Exception:
+            d["params"] = {}
+        out.append(d)
+    return out
+
+
+def record_task_triggered(task_id: str, trigger_time_ms: int | None = None):
+    mark_ms = trigger_time_ms if trigger_time_ms is not None else _now_ms()
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE monitor_tasks SET last_triggered_ms = ? WHERE task_id = ?",
+        (mark_ms, task_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def check_stuck_nodes_query(
+    node_pattern: str = "*",
+    control_pattern: str = "*",
+    max_silent_ms: int = 7200000,
+    now_ms: int | None = None,
+) -> list[dict[str, Any]]:
+    current_ms = now_ms if now_ms is not None else _now_ms()
+    cutoff_ms = current_ms - max_silent_ms
+
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            e.node_id,
+            e.control,
+            COALESCE(s.name, e.control) AS name,
+            MAX(e.event_time_ms) AS last_seen_ms,
+            (? - MAX(e.event_time_ms)) AS silent_ms,
+            (? - MAX(e.event_time_ms)) / 60000 AS silent_minutes,
+            (SELECT value FROM events_dynamic e2 WHERE e2.node_id = e.node_id AND e2.control = e.control ORDER BY e2.event_time_ms DESC LIMIT 1) AS last_value
+        FROM events_dynamic e
+        LEFT JOIN node_control_static s ON e.node_id = s.node_id AND e.control = s.control
+        GROUP BY e.node_id, e.control
+        HAVING MAX(e.event_time_ms) < ?
+        ORDER BY silent_ms DESC
+        """,
+        (current_ms, current_ms, cutoff_ms),
+    )
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+
+    filtered = []
+    for r in rows:
+        if _match_pattern(r["node_id"], node_pattern) and _match_pattern(r["control"], control_pattern):
+            filtered.append(r)
+    return filtered
+
+
+def check_slow_creep_query(
+    node_id: str,
+    control: str,
+    window_start_ms: int,
+    window_end_ms: int,
+    max_zero_threshold: float = 0.05,
+    min_samples: int = 5,
+) -> dict[str, Any] | None:
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            COUNT(*) AS count,
+            MIN(value) AS min_val,
+            AVG(value) AS mean_val,
+            MAX(value) AS max_val
+        FROM events_dynamic
+        WHERE node_id = ? AND control = ? AND event_time_ms >= ? AND event_time_ms <= ?
+        """,
+        (node_id, control, window_start_ms, window_end_ms),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if not row or row["count"] is None or row["count"] < min_samples:
+        return None
+
+    min_val = float(row["min_val"])
+    if min_val > max_zero_threshold:
+        return {
+            "node_id": node_id,
+            "control": control,
+            "sample_count": int(row["count"]),
+            "min_value": min_val,
+            "mean_value": float(row["mean_val"]),
+            "max_value": float(row["max_val"]),
+            "threshold": max_zero_threshold,
+            "window_start_ms": window_start_ms,
+            "window_end_ms": window_end_ms,
+        }
+    return None
+
+
+def get_hourly_sensor_baseline(
+    node_id: str,
+    control: str,
+    hour_of_day: int,
+    window_days: int = 30,
+    current_time_ms: int | None = None,
+) -> dict[str, Any] | None:
+    base_ms = current_time_ms if current_time_ms is not None else _now_ms()
+    cutoff_ms = base_ms - (window_days * 86400 * 1000)
+
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            COUNT(*) AS count,
+            AVG(value) AS mean,
+            SQRT(AVG(value * value) - AVG(value) * AVG(value)) AS stddev,
+            MIN(value) AS min_val,
+            MAX(value) AS max_val
+        FROM events_dynamic
+        WHERE node_id = ?
+          AND control = ?
+          AND event_time_ms >= ?
+          AND CAST(strftime('%H', event_time_ms / 1000, 'unixepoch') AS INTEGER) = ?
+        """,
+        (node_id, control, cutoff_ms, int(hour_of_day)),
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row or row["count"] is None or row["count"] == 0:
+        return None
+
+    return {
+        "hour_of_day": hour_of_day,
+        "count": int(row["count"]),
+        "mean": float(row["mean"]) if row["mean"] is not None else 0.0,
+        "stddev": float(row["stddev"]) if row["stddev"] is not None else 0.0,
+        "min": float(row["min_val"]) if row["min_val"] is not None else 0.0,
+        "max": float(row["max_val"]) if row["max_val"] is not None else 0.0,
+    }
+
 
 
 
