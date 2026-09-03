@@ -2,10 +2,13 @@ import sys
 import os
 import json
 import time
+import re
 import ipaddress
 import threading
+import queue
 from urllib.parse import urlparse
 from datetime import datetime, timezone
+from typing import Any
 import logging
 
 try:
@@ -17,10 +20,26 @@ except ImportError:
             self.primary = primary
             self.address = address
             self.name = name
+            self.drivers = {}
+        def setDriver(self, driver, value, *args, **kwargs):
+            self.drivers[driver] = value
+        def reportDrivers(self):
+            pass
 
     class Interface:
         def __init__(self, *args, **kwargs):
+            self.config = {}
+            self.notices = {}
+        def subscribe(self, *args, **kwargs):
             pass
+        def setCustomParams(self, params):
+            pass
+        def addNotice(self, msg, key="default"):
+            self.notices[key] = msg
+        def removeNotice(self, key):
+            self.notices.pop(key, None)
+        def setCustomNotices(self, notices):
+            self.notices = dict(notices)
 
     class Custom:
         def __init__(self, *args, **kwargs):
@@ -30,6 +49,7 @@ except ImportError:
 
 import database
 import ml_engine
+import notification_engine
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
 from parse_rest import build_control_metadata_records, build_profile_catalog_records
 
@@ -211,13 +231,180 @@ NODE_DEFINITIONS = {
         "nodedef_id": "ML_CTRL",
         "node_type": 1,
         "drivers": [
-            {"driver": "ST", "editor": "I_SYSTEM_STATUS", "uom": 2}
+            {"driver": "ST", "editor": "I_SYSTEM_STATUS", "uom": 2},
+            {"driver": "ALARM", "editor": "I_SYSTEM_STATUS", "uom": 2},
+            {"driver": "GV0", "editor": "I_PERCENT", "uom": 51},
+            {"driver": "GV1", "editor": "I_INDEX", "uom": 56},
+            {"driver": "GV2", "editor": "I_INDEX", "uom": 56}
         ],
         "commands": [
             {"id": "QUERY"}
         ]
     }
 }
+
+# =========================================================================
+# CUSTOM PARAMS MONITORS PARSER & HELPERS
+# =========================================================================
+
+RESERVED_CUSTOM_PARAM_KEYS = {
+    "isy_ip", "isy_user", "isy_password", "isy_port",
+    "eisy_ip", "username", "password",
+    "unmonitored_retention_days", "monitored_retention_days",
+    "eventsource", "udi_rest_refresh_attempts", "udi_rest_refresh_backoff_s",
+    "notify_channels", "notify_email_to",
+    "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from",
+    "notify_udmobile_content_id", "notify_udmobile_recipient_id",
+}
+
+
+def parse_node_control_key(raw_key: str) -> tuple[str | None, str | None, str | None]:
+    """Parse node_id, control, and optional label from raw customParams key.
+
+    Handles:
+    - ${sys.node.n012_8b4c01000cac1a.GV1}
+    - sys.node.n012_8b4c01000cac1a.GV1
+    - n012_8b4c01000cac1a.GV1 [Friendly Name]
+    - n012_8b4c01000cac1a.GV1
+    - n012_8b4c01000cac1a:GV1
+    - ${sys.node.n012_8b4c01000cac1a}
+    - n012_8b4c01000cac1a
+    """
+    cleaned = str(raw_key or "").strip()
+    if not cleaned or cleaned.lower() in RESERVED_CUSTOM_PARAM_KEYS:
+        return None, None, None
+
+    # Strip ${...} wrapper
+    if cleaned.startswith("${") and cleaned.endswith("}"):
+        cleaned = cleaned[2:-1].strip()
+
+    # Strip sys.node. prefix
+    if cleaned.startswith("sys.node."):
+        cleaned = cleaned[9:].strip()
+
+    # Extract existing bracketed label: e.g. "node.control [Friendly Name]"
+    label = None
+    bracket_match = re.search(r"\[(.*?)\]$", cleaned)
+    if bracket_match:
+        label = bracket_match.group(1).strip()
+        cleaned = cleaned[:bracket_match.start()].strip()
+
+    if "." in cleaned:
+        parts = cleaned.split(".", 1)
+        return parts[0].strip(), parts[1].strip(), label
+    elif ":" in cleaned:
+        parts = cleaned.split(":", 1)
+        return parts[0].strip(), parts[1].strip(), label
+    else:
+        return cleaned, None, label
+
+
+def parse_monitor_options(
+    raw_val: str,
+    node_id: str,
+    control: str,
+    friendly_name: str | None = None,
+) -> list[dict[str, Any]]:
+    """Parse comma/space separated monitor options into task records."""
+    text = str(raw_val or "").strip()
+    if not text:
+        return []
+
+    # Strip comment/options prompt if user preserved it: e.g. "spike, stuck (Options: ...)"
+    if "(" in text and ")" in text and not re.search(r"\w+\(\d+", text):
+        text = re.sub(r"\(Options:.*?\)", "", text).strip()
+
+    tokens = [t.strip() for t in re.split(r"[,;|\s]+", text) if t.strip()]
+    tasks = []
+    ctrl_label = friendly_name or control
+
+    token_names = set()
+    for tok in tokens:
+        m = re.match(r"^([a-zA-Z_]+)", tok)
+        if m:
+            token_names.add(m.group(1).lower())
+
+    expand_all = "all" in token_names
+    effective_tokens = ["spike", "stuck", "creep", "hourly"] if expand_all else tokens
+
+    for token in effective_tokens:
+        tok_lower = token.lower()
+
+        # 1. Spike Monitor
+        if tok_lower.startswith("spike") or tok_lower.startswith("surge") or tok_lower.startswith("fast"):
+            z_val = 3.0
+            z_m = re.search(r"\(([\d.]+)", token)
+            if z_m:
+                try:
+                    z_val = float(z_m.group(1))
+                except ValueError:
+                    pass
+            tasks.append({
+                "task_id": f"{node_id}_{control}_spike",
+                "name": f"{ctrl_label} Spike Alarm",
+                "task_type": "spike",
+                "node_id_pattern": node_id,
+                "control_pattern": control,
+                "params": {"z_threshold": z_val, "check_spikes": True},
+                "severity": "critical",
+                "cooldown_ms": 1800000,
+            })
+
+        # 2. Stuck / Watchdog Monitor
+        elif tok_lower.startswith("stuck") or tok_lower.startswith("watchdog") or tok_lower.startswith("heartbeat"):
+            silent_min = 120
+            m_min = re.search(r"\(([\d.]+)", token)
+            if m_min:
+                try:
+                    silent_min = float(m_min.group(1))
+                except ValueError:
+                    pass
+            tasks.append({
+                "task_id": f"{node_id}_{control}_stuck",
+                "name": f"{ctrl_label} Watchdog",
+                "task_type": "stuck_watchdog",
+                "node_id_pattern": node_id,
+                "control_pattern": control,
+                "params": {"max_silent_minutes": silent_min},
+                "severity": "warning",
+                "cooldown_ms": 3600000,
+            })
+
+        # 3. Slow Creep / Leak Monitor
+        elif tok_lower.startswith("creep") or tok_lower.startswith("leak") or tok_lower.startswith("slow"):
+            zero_thresh = 0.05
+            m_zero = re.search(r"\(([\d.]+)", token)
+            if m_zero:
+                try:
+                    zero_thresh = float(m_zero.group(1))
+                except ValueError:
+                    pass
+            tasks.append({
+                "task_id": f"{node_id}_{control}_creep",
+                "name": f"{ctrl_label} Creep/Leak Alarm",
+                "task_type": "slow_creep",
+                "node_id_pattern": node_id,
+                "control_pattern": control,
+                "params": {"window_minutes": 180, "max_zero_threshold": zero_thresh, "min_samples": 5},
+                "severity": "warning",
+                "cooldown_ms": 7200000,
+            })
+
+        # 4. Contextual Hourly Monitor
+        elif tok_lower.startswith("hourly") or tok_lower.startswith("contextual") or tok_lower.startswith("temporal"):
+            tasks.append({
+                "task_id": f"{node_id}_{control}_hourly",
+                "name": f"{ctrl_label} Hourly Baseline",
+                "task_type": "contextual_hourly",
+                "node_id_pattern": node_id,
+                "control_pattern": control,
+                "params": {"z_threshold": 3.0, "window_days": 30, "min_samples": 5},
+                "severity": "warning",
+                "cooldown_ms": 3600000,
+            })
+
+    return tasks
+
 
 # =========================================================================
 # NODE IMPLEMENTATIONS
@@ -253,6 +440,9 @@ class Controller(Node):
         self.active_tasks = []
         self._watchdog_thread = None
         self._watchdog_stop_event = threading.Event()
+        self._notification_queue = queue.Queue()
+        self._notification_thread = None
+        self._notification_stop_event = threading.Event()
         self.custom_params = Custom(self.poly, "customparams")
         # Explicitly bind lifecycle handlers so startup always runs under PG3x.
         self.poly.subscribe(self.poly.START, self.start, self.address)
@@ -298,6 +488,9 @@ class Controller(Node):
         )
         LOGGER.debug("customParams keys seen: %s", sorted(self.custom_params.keys()))
 
+        # Synchronize any monitor tasks defined in customParams
+        self._sync_custom_params_monitors(self.custom_params)
+
         if not self._started:
             return
 
@@ -332,6 +525,7 @@ class Controller(Node):
         return True
 
     def stop(self):
+        self._stop_notification_worker()
         self._stop_watchdog_loop()
         LOGGER.info(
             "Controller stop received. timestamp_policy_mode=%s audited=%s skipped=%s",
@@ -373,6 +567,9 @@ class Controller(Node):
             LOGGER.warning("Failed to load active monitor tasks: %s", exc)
             self.active_tasks = []
 
+        # Synchronize any monitor tasks defined in customParams
+        self._sync_custom_params_monitors(self._get_custom_params())
+
         cfg = self._resolve_iox_connection()
         self._last_connection_fingerprint = (
             str(cfg.get("host") or ""),
@@ -383,6 +580,7 @@ class Controller(Node):
         )
         self._started = True
 
+        self._start_notification_worker()
         self._start_watchdog_loop()
 
         source = self._get_event_source()
@@ -411,7 +609,9 @@ class Controller(Node):
             self._watchdog_thread.join(timeout=2.0)
 
     def _watchdog_worker(self, interval_s):
+        last_prune_s = 0.0
         while not self._watchdog_stop_event.wait(timeout=interval_s):
+            now_s = time.time()
             try:
                 self.active_tasks = database.load_active_monitor_tasks()
                 triggered = ml_engine.evaluate_periodic_tasks(tasks=self.active_tasks)
@@ -425,8 +625,184 @@ class Controller(Node):
                         anom.get("score"),
                         anom.get("details"),
                     )
+                    self._queue_alert(anom)
+
+                # Daily dual-retention pruning (runs every 24 hours)
+                if now_s - last_prune_s >= 86400:
+                    params = self._get_custom_params()
+                    unmonitored_days = max(1, _coerce_int(params.get("unmonitored_retention_days")) or 30)
+                    monitored_days = max(1, _coerce_int(params.get("monitored_retention_days")) or 365)
+                    prune_result = database.prune_events_dual_retention(
+                        unmonitored_days=unmonitored_days,
+                        monitored_days=monitored_days,
+                    )
+                    last_prune_s = now_s
+                    if prune_result.get("total_deleted", 0) > 0:
+                        LOGGER.info(
+                            "Dual-retention pruning complete: deleted unmonitored=%s monitored=%s total=%s",
+                            prune_result.get("unmonitored_deleted"),
+                            prune_result.get("monitored_deleted"),
+                            prune_result.get("total_deleted"),
+                        )
             except Exception as exc:
                 LOGGER.warning("Watchdog worker cycle error: %s", exc)
+
+    def _start_notification_worker(self):
+        LOGGER.info("Starting background notification worker thread...")
+        self._notification_stop_event.clear()
+        self._notification_thread = threading.Thread(
+            target=self._notification_worker_loop,
+            daemon=True,
+            name="NotificationWorker",
+        )
+        self._notification_thread.start()
+
+    def _stop_notification_worker(self):
+        if self._notification_thread and self._notification_thread.is_alive():
+            LOGGER.info("Stopping notification worker thread...")
+            self._notification_stop_event.set()
+            self._notification_queue.put(None)
+            self._notification_thread.join(timeout=2.0)
+
+    def _queue_alert(self, alert_dict: dict[str, Any]):
+        """Queue alert for asynchronous notification delivery and update controller drivers."""
+        if not isinstance(alert_dict, dict):
+            return
+
+        node_id = str(alert_dict.get("node_id") or "")
+        control = str(alert_dict.get("control") or "ST")
+        score = alert_dict.get("score", 85)
+        task_type = alert_dict.get("task_type", "spike")
+        val = alert_dict.get("value")
+
+        # Update controller drivers for native IoX / UD Mobile monitoring
+        try:
+            self.setDriver("ALARM", 1)
+            self.setDriver("GV0", min(100, max(0, int(score))))
+            type_code = notification_engine.TYPE_CODES.get(task_type, 1)
+            self.setDriver("GV1", type_code)
+            if isinstance(val, (int, float)):
+                self.setDriver("GV2", float(val))
+            if hasattr(self, "reportDrivers"):
+                self.reportDrivers()
+        except Exception as exc:
+            LOGGER.debug("Could not update controller alarm drivers: %s", exc)
+
+        # Lookup friendly name if available
+        meta = database.get_node_control_metadata(node_id, control)
+        friendly_name = (meta.get("name") if meta else None) or node_id
+
+        # Enqueue for asynchronous dispatch
+        self._notification_queue.put((alert_dict, friendly_name))
+
+    def _notification_worker_loop(self):
+        while not self._notification_stop_event.is_set():
+            try:
+                item = self._notification_queue.get(timeout=1.0)
+            except queue.Empty:
+                continue
+
+            if item is None or self._notification_stop_event.is_set():
+                break
+
+            alert_dict, friendly_name = item
+            try:
+                config = dict(self._get_custom_params())
+                iox_cfg = self._resolve_iox_connection()
+                config.update(iox_cfg)
+
+                results = notification_engine.dispatch_alert(
+                    alert=alert_dict,
+                    config=config,
+                    device_name=friendly_name,
+                )
+                LOGGER.debug("Alert notification dispatched: results=%s", results)
+            except Exception as exc:
+                LOGGER.warning("Notification dispatch error: %s", exc)
+            finally:
+                self._notification_queue.task_done()
+
+    def _sync_custom_params_monitors(self, params: dict):
+        if not isinstance(params, dict):
+            return
+
+        updated_params = dict(params)
+        need_param_rewrite = False
+        new_tasks = []
+        monitored_summary = []
+
+        for raw_key, raw_val in list(params.items()):
+            node_id, control, existing_label = parse_node_control_key(raw_key)
+            if not node_id:
+                continue
+
+            # Case A: User pasted only node_id without control
+            if not control:
+                available = database.get_node_all_controls(node_id)
+                if available:
+                    ctrl_list = [f"{c['control']} ({c.get('name') or 'N/A'})" for c in available]
+                    notice_msg = f"Available parameters for node {node_id}: " + ", ".join(ctrl_list)
+                    LOGGER.info(notice_msg)
+                    try:
+                        if hasattr(self.poly, "addNotice"):
+                            self.poly.addNotice(notice_msg, key=f"avail_{node_id}")
+                    except Exception:
+                        pass
+                continue
+
+            # Look up metadata in database for friendly name
+            meta = database.get_node_control_metadata(node_id, control)
+            friendly_name = (meta.get("name") if meta else None) or existing_label or control
+
+            # Build canonical labeled key: e.g. "n012_8b4c01000cac1a.GV1 [Water Temperature]"
+            canonical_key = f"{node_id}.{control} [{friendly_name}]" if friendly_name and friendly_name != control else f"{node_id}.{control}"
+
+            val_str = str(raw_val or "").strip()
+
+            # Case B: Value is empty, "?", or "help" -> Provide recommendations
+            if not val_str or val_str in ("?", "help"):
+                suggested_val = "spike, stuck  (Options: spike, stuck, creep, hourly, all)"
+                updated_params.pop(raw_key, None)
+                updated_params[canonical_key] = suggested_val
+                need_param_rewrite = True
+                LOGGER.info("Prompted monitor recommendations for %s: %s", canonical_key, suggested_val)
+                continue
+
+            # Case C: Key wasn't canonical (e.g. was ${sys.node...} or lacked friendly label)
+            if raw_key != canonical_key:
+                updated_params.pop(raw_key, None)
+                updated_params[canonical_key] = val_str
+                need_param_rewrite = True
+
+            # Parse monitor tasks
+            tasks = parse_monitor_options(val_str, node_id, control, friendly_name=friendly_name)
+            if tasks:
+                new_tasks.extend(tasks)
+                task_types = [t["task_type"] for t in tasks]
+                monitored_summary.append(f"{canonical_key}: {', '.join(task_types)}")
+
+        # Upsert tasks to database
+        if new_tasks:
+            database.bulk_upsert_monitor_tasks(new_tasks)
+            self.active_tasks = database.load_active_monitor_tasks()
+            LOGGER.info("Synchronized %d monitor tasks from customParams: %s", len(new_tasks), [t["task_id"] for t in new_tasks])
+
+        # If any keys or values were reformatted/suggested, update PG3x customParams
+        if need_param_rewrite:
+            try:
+                if hasattr(self.poly, "setCustomParams"):
+                    self.poly.setCustomParams(updated_params)
+            except Exception as exc:
+                LOGGER.debug("setCustomParams call: %s", exc)
+
+        # Update dashboard notice with active monitors summary
+        if monitored_summary:
+            dashboard_msg = "Active Monitors:\n" + "\n".join(f"- {s}" for s in monitored_summary)
+            try:
+                if hasattr(self.poly, "addNotice"):
+                    self.poly.addNotice(dashboard_msg, key="active_monitors_summary")
+            except Exception:
+                pass
 
     def _match_profile_candidate(self, candidate, uom=None, value=None):
         if not isinstance(candidate, dict):
@@ -1259,6 +1635,7 @@ class Controller(Node):
                     anom.get("score"),
                     anom.get("details"),
                 )
+                self._queue_alert(anom)
         except Exception as exc:
             LOGGER.warning("Anomaly evaluation error: node=%s control=%s err=%s", node_id, control, exc)
 

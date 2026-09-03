@@ -167,5 +167,48 @@ class TestMonitorTasks(unittest.TestCase):
         trig_allowed = ml_engine.evaluate_live_event_tasks("sensor_x", "ST", 100.0, event_time_ms=170000, tasks=[task])
         self.assertEqual(len(trig_allowed), 1)
 
+    def test_prune_events_dual_retention(self):
+        # Setup active monitor task for water meter FLOW
+        database.upsert_monitor_task(
+            task_id="water_mon",
+            task_type="spike",
+            node_id_pattern="n008_water",
+            control_pattern="FLOW",
+        )
+
+        now_ms = 1000 * 86400 * 1000  # arbitrary current time (day 1000)
+        day_ms = 86400 * 1000
+
+        # 1. Unmonitored event 45 days old (older than 30d -> should be PRUNED)
+        database.insert_dynamic_event("unmon_node", "TEMP", 21.0, event_time_ms=now_ms - (45 * day_ms))
+
+        # 2. Unmonitored event 15 days old (younger than 30d -> should be KEPT)
+        database.insert_dynamic_event("unmon_node", "TEMP", 22.0, event_time_ms=now_ms - (15 * day_ms))
+
+        # 3. Monitored event 60 days old (older than 30d, but younger than 365d -> should be KEPT)
+        database.insert_dynamic_event("n008_water", "FLOW", 1.5, event_time_ms=now_ms - (60 * day_ms))
+
+        # 4. Monitored event 400 days old (older than 365d -> should be PRUNED)
+        database.insert_dynamic_event("n008_water", "FLOW", 2.0, event_time_ms=now_ms - (400 * day_ms))
+
+        # Run dual retention prune
+        result = database.prune_events_dual_retention(unmonitored_days=30, monitored_days=365, now_ms=now_ms)
+
+        self.assertEqual(result["unmonitored_deleted"], 1)
+        self.assertEqual(result["monitored_deleted"], 1)
+        self.assertEqual(result["total_deleted"], 2)
+
+        # Verify database contents
+        conn = database._connect()
+        cursor = conn.cursor()
+        cursor.execute("SELECT node_id, control, event_time_ms FROM events_dynamic ORDER BY event_time_ms")
+        remaining = cursor.fetchall()
+        conn.close()
+
+        self.assertEqual(len(remaining), 2)
+        remaining_records = [(r[0], r[1]) for r in remaining]
+        self.assertIn(("unmon_node", "TEMP"), remaining_records)
+        self.assertIn(("n008_water", "FLOW"), remaining_records)
+
 if __name__ == "__main__":
     unittest.main()

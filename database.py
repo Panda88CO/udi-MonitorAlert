@@ -705,6 +705,42 @@ def load_control_metadata_index() -> dict[tuple[str, str], dict[str, Any]]:
     return out
 
 
+def get_node_control_metadata(node_id: str, control: str) -> dict[str, Any] | None:
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT node_id, control, name, action, uom, uom_label, min_value, max_value, enum_map_json
+        FROM node_control_static
+        WHERE node_id = ? AND control = ?
+        """,
+        (node_id, control),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return dict(row)
+
+
+def get_node_all_controls(node_id: str) -> list[dict[str, Any]]:
+    conn = _connect()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT node_id, control, name, action, uom, uom_label
+        FROM node_control_static
+        WHERE node_id = ?
+        ORDER BY control ASC
+        """,
+        (node_id,),
+    )
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+
 def insert_dynamic_event(
     node_id: str,
     control: str,
@@ -1646,6 +1682,57 @@ def get_hourly_sensor_baseline(
         "min": float(row["min_val"]) if row["min_val"] is not None else 0.0,
         "max": float(row["max_val"]) if row["max_val"] is not None else 0.0,
     }
+
+
+def prune_events_dual_retention(
+    unmonitored_days: int = 30,
+    monitored_days: int = 365,
+    now_ms: int | None = None,
+) -> dict[str, int]:
+    """Prune historical events using a tiered dual-retention policy:
+    - Unmonitored sensor events are deleted after `unmonitored_days` (default 30).
+    - Monitored sensor events (matching enabled monitor_tasks) are preserved up to `monitored_days` (default 365).
+    """
+    current_ms = now_ms if now_ms is not None else int(_now_ms())
+    unmonitored_cutoff_ms = current_ms - (int(unmonitored_days) * 86400 * 1000)
+    monitored_cutoff_ms = current_ms - (int(monitored_days) * 86400 * 1000)
+
+    conn = _connect()
+    cursor = conn.cursor()
+    _ensure_monitor_tasks_schema(cursor)
+
+    # 1. Prune unmonitored events older than unmonitored_cutoff_ms
+    cursor.execute(
+        """
+        DELETE FROM events_dynamic
+        WHERE event_time_ms < ?
+          AND NOT EXISTS (
+              SELECT 1 FROM monitor_tasks t
+              WHERE t.enabled = 1
+                AND events_dynamic.node_id GLOB t.node_id_pattern
+                AND events_dynamic.control GLOB t.control_pattern
+          )
+        """,
+        (unmonitored_cutoff_ms,),
+    )
+    unmonitored_deleted = cursor.rowcount
+
+    # 2. Prune all events (including monitored) older than monitored_cutoff_ms
+    cursor.execute(
+        "DELETE FROM events_dynamic WHERE event_time_ms < ?",
+        (monitored_cutoff_ms,),
+    )
+    monitored_deleted = cursor.rowcount
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "unmonitored_deleted": max(0, unmonitored_deleted),
+        "monitored_deleted": max(0, monitored_deleted),
+        "total_deleted": max(0, unmonitored_deleted) + max(0, monitored_deleted),
+    }
+
 
 
 

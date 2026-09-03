@@ -96,20 +96,94 @@ WHERE node_id = ? AND control = ? AND event_time_ms >= ?
 
 ---
 
+## Tiered Dual-Retention Storage Policy
+
+To permanently bound database size on the eISY while preserving long-term trends for critical equipment, the background watchdog executes a native SQLite cleanup once every 24 hours:
+
+- **Unmonitored Telemetry (Default: 30 Days)**: Retains a rolling 30-day baseline buffer for all unmonitored sensors so that newly configured monitors have immediate baseline data without a "cold start". Older unmonitored data is deleted.
+- **Monitored Telemetry (Default: 365 Days)**: Retains 1+ years of history for devices matching active `monitor_tasks` to capture annual seasonality and long-term degradation.
+- **Total Storage Footprint**: Keeps total SQLite storage under **10–15 MB forever**.
+
+---
+
 ## Configuration
 
-### PG3x `customParams` (Recommended)
-Configure IoX connection credentials in the PG3x dashboard:
+### 1. Connecting to IoX (`customParams`)
+In the PG3x dashboard under the **Configuration** tab, enter your connection credentials:
 
-```json
-{
-  "isy_ip": "192.168.1.240",
-  "isy_user": "admin",
-  "isy_password": "YOUR_PASSWORD"
-}
-```
+| Key | Example Value | Description |
+| :--- | :--- | :--- |
+| `isy_ip` | `192.168.1.240` | eISY / IoX IPv4 address |
+| `isy_user` | `admin` | Admin username |
+| `isy_password` | `your_password` | Admin password |
+| `unmonitored_retention_days` | `30` | *(Optional)* Rolling baseline buffer for unmonitored devices |
+| `monitored_retention_days` | `365` | *(Optional)* History retention for monitored devices |
 
-### PG3x `customData` (Optional NuCore Provider)
+---
+
+### 2. Defining Monitored Sensors in the PG3x Configuration Tab
+
+You can add sensors directly in the PG3x **Custom Parameters** table without writing JSON:
+
+1. **Copy** any device variable from the IoX Admin Console (e.g. `${sys.node.n012_8b4c01000cac1a.GV1}`).
+2. In the PG3x Configuration tab, click **+ Add**:
+   - **Key**: Paste the copied string (`${sys.node.n012_8b4c01000cac1a.GV1}`).
+   - **Value**: Type the monitor types you want (e.g. `spike, stuck`).
+3. Click **Save**:
+   - The node server automatically resolves `GV1` to its friendly name from SQLite metadata (e.g. `Water Temperature`).
+   - The key is auto-rewritten in the table to: `n012_8b4c01000cac1a.GV1 [Water Temperature]`.
+   - The active monitoring rules are created and run in SQLite.
+
+#### Example Configuration Rows:
+
+| Key | Value | Result |
+| :--- | :--- | :--- |
+| `${sys.node.n012_8b4c01000cac1a.GV1}` | `spike, stuck` | Alerts on spikes ($Z \ge 3.0$) and watchdog silence ($> 2$h). Auto-labels `[Water Temperature]`. |
+| `n008_water_meter.FLOW` | `spike, creep, stuck` | Monitors water flow for burst spikes, night trickle leaks, and sensor freeze. |
+| `n008_main_panel.WATTS` | `hourly, spike` | Compares power draw to that hour-of-day's baseline, and alerts on surges. |
+| `n012_pool_heater.CLITEMP` | `?` | **Help mode**: Auto-populates available options into the value field. |
+| `${sys.node.n012_pool_heater}` | *(any)* | **Discovery mode**: Posts a PG3x dashboard notice listing all available controls on that device. |
+
+#### Supported Monitor Keywords:
+* **`spike`**: Fast spikes, sudden velocity steps, and upper thresholds.
+* **`stuck`** *(or `watchdog`)*: Frozen telemetry or disconnected device (default $> 120$ min).
+* **`creep`** *(or `leak`)*: Continuous non-zero floor over quiet hours (default $> 0.05$ over 3h).
+* **`hourly`**: Contextual baseline specific to the current hour of day.
+* **`all`**: Enables all 4 monitor types on that parameter.
+* *Optional custom parameters*: e.g. `stuck(60m)`, `creep(0.01)`, `spike(3.5z)`.
+
+---
+
+### 3. Notification Configuration (Email & UD Mobile)
+
+Configure alert dispatching in the PG3x **Configuration** tab (`customParams`):
+
+| Key | Example Value | Description |
+| :--- | :--- | :--- |
+| `notify_channels` | `email, udmobile` | Notification destinations (`email`, `udmobile`, `both`, or `none`) |
+| `notify_email_to` | `me@example.com, alert@domain.com` | Destination email addresses (comma-separated) |
+| `notify_email_from` | `alerts@mydomain.com` | *(Optional)* Sender address (defaults to `smtp_user`) |
+| `smtp_host` | `smtp.gmail.com` | Outgoing SMTP mail server |
+| `smtp_port` | `587` | SMTP port (`587` for TLS/STARTTLS, `465` for SSL, `25` for local relay) |
+| `smtp_user` | `user@gmail.com` | SMTP authentication username / account |
+| `smtp_password` | `app-specific-password` | SMTP authentication password or app password |
+| `notify_udmobile_content_id` | `1` | IoX built-in notification content ID for UD Mobile push (default `1`) |
+| `notify_udmobile_recipient_id` | `1` | IoX notification recipient/user ID (default `1`) |
+
+#### Controller Node Status Drivers (`ML_CTRL`)
+The controller node drivers update immediately on every anomaly, enabling native IoX Programs and UD Mobile push triggers without requiring external network connectivity:
+
+| Driver | Description | Values |
+| :--- | :--- | :--- |
+| `ST` | Node Server Status | 1 = Online, 0 = Disconnected |
+| `ALARM` | Anomaly Alert Flag | 0 = Normal, 1 = Active Alert |
+| `GV0` | Anomaly Confidence | 0 to 100 (%) |
+| `GV1` | Anomaly Type Code | 1 = Spike / Surge, 2 = Stuck / Silent, 3 = Slow Creep / Leak, 4 = Hourly Deviation |
+| `GV2` | Anomalous Reading | Last sensor value that triggered the alert |
+
+---
+
+### 4. PG3x `customData` (Optional NuCore Provider)
 To enable NuCore shared-features event streaming:
 
 ```json
@@ -173,7 +247,7 @@ Timestamp               Node ID                Ctrl        Prev     New    dVal 
 
 ## Running Unit Tests
 
-Execute the full automated test suite (30 unit tests across database, ML, parsing, and subscribers):
+Execute the full automated test suite (47 unit tests across database, ML, parsing, subscribers, tasks, and notifications):
 
 ```powershell
 python -m unittest discover -v
@@ -184,4 +258,5 @@ python -m unittest discover -v
 ## License
 
 This project is licensed under the MIT License. See [LICENSE.md](LICENSE.md) for details.
+
 
