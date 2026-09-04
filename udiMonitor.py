@@ -91,7 +91,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.2")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.3")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
