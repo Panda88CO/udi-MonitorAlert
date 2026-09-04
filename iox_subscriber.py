@@ -40,10 +40,19 @@ class IoXEventSubscriber:
         )
 
     def start(self):
+        if websocket is None:
+            LOGGER.error(
+                "Cannot start IoX subscriber: 'websocket-client' package is not installed in Python environment. "
+                "Please run install.sh or 'pip3 install --user websocket-client'."
+            )
+            return
         LOGGER.info("Starting IoX subscriber thread for %s", self.ws_url)
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
+        if websocket is None:
+            LOGGER.error("Cannot run IoX subscriber: websocket module is unavailable.")
+            return
         headers = [f"Authorization: Basic {self.auth_header}"]
         self.ws = websocket.WebSocketApp(
             self.ws_url,

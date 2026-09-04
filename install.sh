@@ -11,7 +11,14 @@ if [ ! -f "$REQ_FILE" ]; then
 	exit 1
 fi
 
-python3 -m pip install --upgrade pip
-python3 -m pip install -r "$REQ_FILE"
+# Clean up broken user-level pip if previous pip upgrade corrupted vendored dependencies
+if [ -n "${HOME:-}" ] && [ -d "$HOME/.local/lib" ]; then
+	find "$HOME/.local/lib" -type d -name "pip*" -maxdepth 4 -exec rm -rf {} + 2>/dev/null || true
+fi
 
-echo "Installation Finished successfully."
+# Install dependencies to user site-packages without upgrading pip
+PYTHONNOUSERSITE=1 python3 -m pip install --user -r "$REQ_FILE" || \
+python3 -m pip install --user -r "$REQ_FILE" || \
+pip3 install --user -r "$REQ_FILE"
+
+echo "Installation finished successfully."

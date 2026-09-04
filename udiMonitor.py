@@ -91,7 +91,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.0.2")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.0")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -1447,6 +1447,25 @@ class Controller(Node):
                 IOX_IMPORT_ERROR,
             )
             return
+
+        try:
+            import iox_subscriber
+            if getattr(iox_subscriber, "websocket", None) is None:
+                LOGGER.error(
+                    "IoX subscriber unavailable: 'websocket-client' Python package is not installed. "
+                    "Run install.sh or 'pip3 install --user websocket-client'."
+                )
+                try:
+                    if hasattr(self.poly, "addNotice"):
+                        self.poly.addNotice(
+                            "Error: Missing dependency 'websocket-client'. Please run install.sh or install websocket-client.",
+                            key="missing_websocket_dep",
+                        )
+                except Exception:
+                    pass
+                return
+        except Exception:
+            pass
 
         LOGGER.info("Starting IoX fallback subscriber...")
         iox_conn = self._resolve_iox_connection()

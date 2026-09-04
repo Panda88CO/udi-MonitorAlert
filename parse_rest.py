@@ -1,6 +1,16 @@
-import xml.etree.ElementTree as ET
+import base64
 import re
+import ssl
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
 from collections import OrderedDict
+
+try:
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+except Exception:
+    pass
 
 try:
     import requests
@@ -15,7 +25,7 @@ USERNAME = "admin"
 PASSWORD = "password"
 
 BASE_URL = f"http://{ISY_IP}/rest"
-AUTH = HTTPBasicAuth(USERNAME, PASSWORD) if HTTPBasicAuth else None
+AUTH = HTTPBasicAuth(USERNAME, PASSWORD) if HTTPBasicAuth else (USERNAME, PASSWORD)
 
 # Global caches so we only download profile assets once per slot
 PROFILE_CACHE = {}  # Format: { profile_id: { "node_defs": {...}, "nls": {...} } }
@@ -35,31 +45,48 @@ UOM_LABELS = {
 }
 
 
+def _fetch_url_bytes(url, auth=None, timeout=10):
+    """Fetch raw bytes from URL supporting requests (verify=False) or standard urllib with unverified SSL."""
+    if requests is not None:
+        try:
+            resp = requests.get(url, auth=auth, timeout=timeout, verify=False)
+            if resp.status_code == 200:
+                return resp.content
+            return None
+        except Exception:
+            pass
+
+    try:
+        req = urllib.request.Request(url)
+        if auth:
+            user = getattr(auth, "username", None) or (auth[0] if isinstance(auth, (tuple, list)) and len(auth) > 0 else None)
+            pwd = getattr(auth, "password", None) or (auth[1] if isinstance(auth, (tuple, list)) and len(auth) > 1 else None)
+            if user and pwd:
+                auth_str = f"{user}:{pwd}"
+                b64_auth = base64.b64encode(auth_str.encode("utf-8")).decode("ascii")
+                req.add_header("Authorization", f"Basic {b64_auth}")
+
+        ctx = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            status = getattr(resp, "status", None) or resp.getcode()
+            if status in (200, 204):
+                return resp.read()
+    except Exception:
+        pass
+    return None
+
+
 def fetch_xml(url):
     """Utility to fetch and parse XML."""
-    try:
-        response = requests.get(url, auth=AUTH, timeout=10)
-        response.raise_for_status()
-        return ET.fromstring(response.content)
-    except requests.exceptions.RequestException as e:
-        print(f"  [Error] Failed XML fetch for {url}: {e}")
-        return None
+    return _fetch_xml_with_auth(url, auth=AUTH)
 
 
 def fetch_nls(url):
     """Utility to fetch and parse text-based NLS files."""
     try:
-        response = requests.get(url, auth=AUTH, timeout=10)
-        response.raise_for_status()
-        nls_dict = {}
-        for line in response.text.splitlines():
-            if line.startswith("#") or not line.strip() or "=" not in line:
-                continue
-            key, val = line.split("=", 1)
-            nls_dict[key.strip()] = val.strip()
-        return nls_dict
-    except Exception as e:
-        # Some core profile paths or empty slots might not have NLS files, fail gracefully
+        raw_text = _fetch_text(url, auth=AUTH)
+        return _parse_nls_text(raw_text)
+    except Exception:
         return {}
 
 
@@ -78,21 +105,20 @@ def _coerce_float(value):
 
 
 def _fetch_text(url, auth, timeout=10):
-    try:
-        response = requests.get(url, auth=auth, timeout=timeout)
-        response.raise_for_status()
-        return response.text
-    except requests.exceptions.RequestException:
-        return None
+    content = _fetch_url_bytes(url, auth=auth, timeout=timeout)
+    if content is not None:
+        return content.decode("utf-8", errors="replace")
+    return None
 
 
 def _fetch_xml_with_auth(url, auth, timeout=10):
-    try:
-        response = requests.get(url, auth=auth, timeout=timeout)
-        response.raise_for_status()
-        return ET.fromstring(response.content)
-    except (requests.exceptions.RequestException, ET.ParseError):
-        return None
+    content = _fetch_url_bytes(url, auth=auth, timeout=timeout)
+    if content is not None:
+        try:
+            return ET.fromstring(content)
+        except ET.ParseError:
+            return None
+    return None
 
 
 def _parse_nls_text(raw_text):
@@ -325,7 +351,7 @@ def build_profile_catalog_records(rest_base_url, username, password, timeout=10)
     Returns a tuple: (records, stats)
     records: list[dict] ready for database.bulk_upsert_profile_control_schema(records)
     """
-    auth = HTTPBasicAuth(username, password)
+    auth = HTTPBasicAuth(username, password) if HTTPBasicAuth else (username, password)
     profiles_xml = _fetch_xml_with_auth(f"{rest_base_url}/profiles", auth=auth, timeout=timeout)
     if profiles_xml is None:
         return [], {"profile_slots": 0, "node_defs": 0, "controls": 0, "records": 0}
@@ -438,7 +464,7 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
     Returns a tuple: (records, stats)
     records: list[dict] ready for database.upsert_static_metadata(**record)
     """
-    auth = HTTPBasicAuth(username, password)
+    auth = HTTPBasicAuth(username, password) if HTTPBasicAuth else (username, password)
     status_xml = _fetch_xml_with_auth(f"{rest_base_url}/status", auth=auth, timeout=timeout)
     if status_xml is None:
         return [], {"status_nodes": 0, "status_properties": 0, "slots_loaded": 0, "records": 0}

@@ -69,5 +69,25 @@ class TestSubscribers(unittest.TestCase):
         self.assertEqual(ev["value"], "255")
         self.assertEqual(ev["fmtAct"], "On")
 
+    def test_iox_subscriber_missing_websocket(self):
+        import iox_subscriber
+        original_ws = iox_subscriber.websocket
+        try:
+            iox_subscriber.websocket = None
+            sub = IoXEventSubscriber(
+                host="127.0.0.1",
+                port="8080",
+                username="admin",
+                password="pwd",
+                event_callback=lambda e: None,
+            )
+            # start() should gracefully exit without throwing AttributeError
+            sub.start()
+            # _run() should also exit gracefully without throwing AttributeError
+            sub._run()
+        finally:
+            iox_subscriber.websocket = original_ws
+
+
 if __name__ == "__main__":
     unittest.main()
