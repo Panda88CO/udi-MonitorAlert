@@ -570,4 +570,4 @@ def evaluate_state_periodic_testing(
                     "timestamp_ms": current_ms,
                 })
 
-    return triggered
+    return triggered
