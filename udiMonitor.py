@@ -444,6 +444,14 @@ class Controller(Node):
         self._notification_thread = None
         self._notification_stop_event = threading.Event()
         self.custom_params = Custom(self.poly, "customparams")
+        # State-aware monitoring and testing cadence attributes
+        self.current_system_state = "default"
+        self.system_state_numeric = 1
+        self.state_source_str = ""
+        self.state_source_info = {}
+        self.state_mapping = {"0": "away", "1": "home", "255": "home"}
+        self.test_interval_minutes = 15
+        self.var_definitions = {}
         # Explicitly bind lifecycle handlers so startup always runs under PG3x.
         self.poly.subscribe(self.poly.START, self.start, self.address)
         self.poly.subscribe(self.poly.STOP, self.stop)
@@ -488,11 +496,240 @@ class Controller(Node):
         )
         LOGGER.debug("customParams keys seen: %s", sorted(self.custom_params.keys()))
 
-        # Synchronize any monitor tasks defined in customParams
+        # Synchronize state configuration and monitor tasks defined in customParams
+        self._sync_state_configuration(self.custom_params)
         self._sync_custom_params_monitors(self.custom_params)
 
         if not self._started:
             return
+
+    def _update_state_driver(self, state_str: str, raw_num: float | int | None = None):
+        """Update driver GV3 with numeric status for UD Mobile / Admin Console visibility."""
+        try:
+            num_val = 0 if state_str == "away" else (1 if state_str == "home" else 2)
+            if raw_num is not None:
+                try:
+                    num_val = int(raw_num)
+                except (ValueError, TypeError):
+                    pass
+            self.setDriver("GV3", num_val)
+            if hasattr(self, "reportDrivers"):
+                self.reportDrivers()
+        except Exception as exc:
+            LOGGER.debug("Could not update controller state driver: %s", exc)
+
+    def _parse_state_mapping(self, raw_mapping: Any) -> dict[str, str]:
+        """Parse user-defined state mapping like '0:away, 1:home' or JSON dict."""
+        default_map = {"0": "away", "1": "home", "255": "home"}
+        if not raw_mapping:
+            return default_map
+        if isinstance(raw_mapping, dict):
+            return {str(k).strip(): str(v).strip().lower() for k, v in raw_mapping.items()}
+        mapping_str = str(raw_mapping).strip()
+        if mapping_str.startswith("{"):
+            try:
+                parsed = json.loads(mapping_str)
+                if isinstance(parsed, dict):
+                    return {str(k).strip(): str(v).strip().lower() for k, v in parsed.items()}
+            except Exception:
+                pass
+        result = {}
+        for part in mapping_str.split(","):
+            if ":" in part:
+                k, v = part.split(":", 1)
+                result[k.strip()] = v.strip().lower()
+            elif "=" in part:
+                k, v = part.split("=", 1)
+                result[k.strip()] = v.strip().lower()
+        return result if result else default_map
+
+    def _sync_state_configuration(self, params: dict):
+        """Parse state_source, state_mapping, and test_interval_minutes from customParams."""
+        if not isinstance(params, dict):
+            return
+
+        # 1. Testing Cadence
+        raw_interval = params.get("test_interval_minutes") or params.get("test_interval") or params.get("test_cadence")
+        if raw_interval is not None:
+            val_int = _coerce_int(raw_interval)
+            if val_int and val_int > 0:
+                self.test_interval_minutes = max(1, val_int)
+                LOGGER.info("Configured testing cadence: every %s minute(s)", self.test_interval_minutes)
+
+        # 2. State Mapping
+        raw_mapping = params.get("state_mapping") or params.get("system_state_map")
+        self.state_mapping = self._parse_state_mapping(raw_mapping)
+
+        # 3. State Source (e.g. $HERE, HERE, VAR.2.5, n001_dsc.ARMST)
+        raw_source = params.get("state_source") or params.get("system_state_node") or params.get("system_state_var")
+        if not raw_source:
+            return
+
+        source_str = str(raw_source).strip()
+        if source_str in ("?", "help"):
+            self._prompt_state_source_help()
+            return
+
+        self.state_source_str = source_str
+        self._resolve_state_source(source_str)
+
+    def _resolve_state_source(self, source_str: str):
+        """Resolve configured state source (ISY variable or node control) to internal descriptors."""
+        clean = source_str.strip()
+        is_var = clean.startswith("$") or clean.upper().startswith("VAR.") or ("." not in clean and "_" not in clean)
+
+        if is_var:
+            norm_name = clean.lstrip("$")
+            info = self.var_definitions.get("by_name", {}).get(norm_name) or self.var_definitions.get("by_name", {}).get(clean)
+            if info:
+                self.state_source_info = {
+                    "kind": "variable",
+                    "type": info["type"],
+                    "id": info["id"],
+                    "name": info["name"],
+                    "key": f"VAR.{info['type']}.{info['id']}",
+                }
+                LOGGER.info("Resolved state_source '%s' to ISY variable %s (type=%s id=%s)", clean, info["name"], info["type"], info["id"])
+            else:
+                m_var = re.match(r"(?i)VAR\.(\d+)\.(\d+)", clean)
+                if m_var:
+                    v_type, v_id = int(m_var.group(1)), int(m_var.group(2))
+                    self.state_source_info = {
+                        "kind": "variable",
+                        "type": v_type,
+                        "id": v_id,
+                        "name": f"VAR.{v_type}.{v_id}",
+                        "key": f"VAR.{v_type}.{v_id}",
+                    }
+                else:
+                    self.state_source_info = {
+                        "kind": "variable_pending",
+                        "name": norm_name,
+                        "key": clean,
+                    }
+                    LOGGER.debug("State source variable '%s' pending resolution from REST definitions.", clean)
+        else:
+            if "." in clean:
+                node_id, ctrl = clean.split(".", 1)
+            else:
+                node_id, ctrl = clean, "ST"
+            self.state_source_info = {
+                "kind": "node_control",
+                "node_id": node_id.strip(),
+                "control": ctrl.strip(),
+                "key": f"{node_id.strip()}.{ctrl.strip()}",
+            }
+            LOGGER.info("Resolved state_source to device node control: node=%s control=%s", node_id.strip(), ctrl.strip())
+
+    def _prompt_state_source_help(self):
+        """Publish an interactive notice in Polyglot PG3 listing discovered variables."""
+        var_list = []
+        for v in self.var_definitions.get("definitions", []):
+            var_list.append(f"${v['name']} (Type={v['type']}, ID={v['id']})")
+        if var_list:
+            msg = "Available ISY State Variables for state_source:\n" + "\n".join(f"- {item}" for item in var_list[:15])
+            if len(var_list) > 15:
+                msg += f"\n...and {len(var_list) - 15} more."
+        else:
+            msg = "Enter an ISY variable (e.g. state_source = $HERE) or node control (e.g. state_source = n002_dsc_part1.ARMST)."
+
+        LOGGER.info("State source help prompted: %s", msg)
+        try:
+            if hasattr(self.poly, "addNotice"):
+                self.poly.addNotice(msg, key="state_source_help")
+        except Exception:
+            pass
+
+    def _refresh_state_from_rest(self):
+        """Query REST for variable definitions and initial state source value."""
+        iox_cfg = self._resolve_iox_connection()
+        host = iox_cfg.get("host")
+        port = iox_cfg.get("port")
+        user = iox_cfg.get("username")
+        pwd = iox_cfg.get("password")
+        secure = iox_cfg.get("secure")
+        if not host or not user or not pwd:
+            return
+
+        scheme = "https" if secure else "http"
+        base_url = f"{scheme}://{host}:{port}/rest"
+        auth = (user, pwd)
+
+        try:
+            defs = parse_rest.fetch_variable_definitions(base_url, auth=auth)
+            if defs and defs.get("by_name"):
+                self.var_definitions = defs
+                LOGGER.info("Discovered %d ISY variable definitions via REST", len(defs.get("definitions", [])))
+                if self.state_source_str:
+                    self._resolve_state_source(self.state_source_str)
+
+            initial_val = None
+            if self.state_source_info.get("kind") == "variable":
+                v_type = self.state_source_info.get("type", 2)
+                v_id = self.state_source_info.get("id", 1)
+                initial_val = parse_rest.fetch_variable_value(base_url, auth=auth, var_type=v_type, var_id=v_id)
+            elif self.state_source_info.get("kind") == "node_control":
+                node_id = self.state_source_info.get("node_id")
+                last_ev = database.get_last_event(node_id, self.state_source_info.get("control", "ST"))
+                if last_ev:
+                    initial_val = last_ev.get("value")
+
+            if initial_val is not None:
+                val_key = str(int(float(initial_val))) if isinstance(initial_val, (int, float)) else str(initial_val).strip()
+                mapped_state = self.state_mapping.get(val_key, self.state_mapping.get(str(initial_val).strip(), val_key.lower()))
+                self.current_system_state = mapped_state
+                self._update_state_driver(mapped_state, raw_num=initial_val)
+                LOGGER.info("Initialized system state from REST: state=%s (raw=%s)", mapped_state, initial_val)
+        except Exception as exc:
+            LOGGER.warning("Could not refresh state from REST: %s", exc)
+
+    def _check_and_apply_state_update(self, event, node_id, control, value):
+        """Check if incoming event updates the configured state source, and apply state transition."""
+        if not self.state_source_info:
+            return
+
+        is_state_event = False
+        new_val = value
+
+        kind = self.state_source_info.get("kind")
+        if kind == "variable":
+            tgt_type = self.state_source_info.get("type")
+            tgt_id = self.state_source_info.get("id")
+            tgt_key = self.state_source_info.get("key")
+
+            ev_type = event.get("event_type")
+            ev_vtype = event.get("var_type")
+            ev_vid = event.get("var_id")
+
+            if (ev_type == "variable" and ev_vtype == tgt_type and ev_vid == tgt_id):
+                is_state_event = True
+                new_val = event.get("value")
+            elif str(node_id) == str(tgt_key):
+                is_state_event = True
+                new_val = value
+
+        elif kind == "node_control":
+            tgt_node = self.state_source_info.get("node_id")
+            tgt_ctrl = self.state_source_info.get("control")
+            if str(node_id) == str(tgt_node) and str(control) == str(tgt_ctrl):
+                is_state_event = True
+                new_val = value
+
+        elif kind == "variable_pending":
+            norm_name = self.state_source_info.get("name", "").lower()
+            ev_name = str(event.get("name") or "").lower()
+            if ev_name and ev_name == norm_name:
+                is_state_event = True
+                new_val = value
+
+        if is_state_event and new_val is not None:
+            raw_str = str(int(float(new_val))) if _coerce_float(new_val) is not None else str(new_val).strip()
+            mapped_state = self.state_mapping.get(raw_str, self.state_mapping.get(str(new_val).strip(), raw_str.lower()))
+            old_state = self.current_system_state
+            if old_state != mapped_state:
+                self.current_system_state = mapped_state
+                self._update_state_driver(mapped_state, raw_num=new_val)
+                LOGGER.info("System state transitioned: %s -> %s (raw=%s)", old_state, mapped_state, new_val)
 
         cfg = self._resolve_iox_connection()
         fingerprint = (
@@ -567,7 +804,8 @@ class Controller(Node):
             LOGGER.warning("Failed to load active monitor tasks: %s", exc)
             self.active_tasks = []
 
-        # Synchronize any monitor tasks defined in customParams
+        # Synchronize state configuration and monitor tasks defined in customParams
+        self._sync_state_configuration(self._get_custom_params())
         self._sync_custom_params_monitors(self._get_custom_params())
 
         cfg = self._resolve_iox_connection()
@@ -610,6 +848,7 @@ class Controller(Node):
 
     def _watchdog_worker(self, interval_s):
         last_prune_s = 0.0
+        last_state_test_s = 0.0
         while not self._watchdog_stop_event.wait(timeout=interval_s):
             now_s = time.time()
             try:
@@ -626,6 +865,26 @@ class Controller(Node):
                         anom.get("details"),
                     )
                     self._queue_alert(anom)
+
+                # Periodic testing against data-driven state baselines at configured cadence
+                cadence_s = max(60, int(self.test_interval_minutes * 60))
+                if now_s - last_state_test_s >= cadence_s:
+                    last_state_test_s = now_s
+                    state_anoms = ml_engine.evaluate_state_periodic_testing(
+                        system_state=self.current_system_state,
+                        test_interval_minutes=self.test_interval_minutes,
+                    )
+                    for anom in state_anoms:
+                        LOGGER.warning(
+                            "STATE CADENCE ALERT [%s]: %s (node=%s control=%s score=%s details=%s)",
+                            anom.get("severity", "warning").upper(),
+                            anom.get("task_name"),
+                            anom.get("node_id"),
+                            anom.get("control"),
+                            anom.get("score"),
+                            anom.get("details"),
+                        )
+                        self._queue_alert(anom)
 
                 # Daily dual-retention pruning (runs every 24 hours)
                 if now_s - last_prune_s >= 86400:
@@ -1010,13 +1269,15 @@ class Controller(Node):
             refreshed = self._refresh_metadata_with_retry(active_map, reason=reason)
             self.profile_control_index = database.load_profile_control_schema_index()
             self.control_meta_index = database.load_control_metadata_index()
+            self._refresh_state_from_rest()
             LOGGER.info(
-                "Metadata refresh cycle complete: reason=%s catalog_refreshed=%s refreshed=%s schema_controls=%s loaded_rows=%s",
+                "Metadata refresh cycle complete: reason=%s catalog_refreshed=%s refreshed=%s schema_controls=%s loaded_rows=%s state=%s",
                 reason,
                 catalog_refreshed,
                 refreshed,
                 len(self.profile_control_index),
                 len(self.control_meta_index),
+                self.current_system_state,
             )
             return catalog_refreshed or refreshed
         finally:
@@ -1559,6 +1820,9 @@ class Controller(Node):
         LOGGER.debug("Event callback received: source=%s node_id=%s control=%s value=%s name=%s action=%s time=%s", event.get("source"), node_id, control,  value , name, action, event_time)
         log_event_to_file(node_id, control, value, name, action, event_time)
 
+        # Check if event triggers a system state transition (e.g. $HERE or alarm armed/disarmed)
+        self._check_and_apply_state_update(event, node_id, control, value)
+
         if node_id is not None and control is not None:
             try:
                 enum_value = None
@@ -1642,6 +1906,7 @@ class Controller(Node):
                 new_value=value,
                 event_time_ms=event_time,
                 tasks=self.active_tasks,
+                system_state=self.current_system_state,
             )
             for anom in triggered:
                 LOGGER.warning(
@@ -1664,6 +1929,7 @@ class Controller(Node):
                 control=str(control),
                 value=value,
                 event_time_ms=event_time,
+                system_state=self.current_system_state,
             )
         except Exception as exc:
             LOGGER.warning("Failed dynamic event insert: node=%s control=%s err=%s", node_id, control, exc)

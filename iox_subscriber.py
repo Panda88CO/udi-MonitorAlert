@@ -95,6 +95,28 @@ class IoXEventSubscriber:
                 event["value"] = action
                 event["values"] = {control: action}
 
+            # Check for ISY variable change events (category _1, action 6, 7, or 9)
+            var_elem = root.find(".//var")
+            if var_elem is not None:
+                v_type = var_elem.attrib.get("type")
+                v_id = var_elem.attrib.get("id")
+                val_elem = var_elem.find("val")
+                val_text = (val_elem.text or "").strip() if val_elem is not None else None
+                if v_type and v_id:
+                    event["event_type"] = "variable"
+                    try:
+                        event["var_type"] = int(v_type)
+                        event["var_id"] = int(v_id)
+                    except ValueError:
+                        event["var_type"] = v_type
+                        event["var_id"] = v_id
+                    var_key = f"VAR.{v_type}.{v_id}"
+                    event["node_id"] = var_key
+                    event["control"] = "VAL"
+                    if val_text is not None:
+                        event["value"] = val_text
+                        event["values"] = {"VAL": val_text}
+
             self.callback(event)
         except Exception as e:
             LOGGER.debug(f"Failed to parse IoX event XML: {e}")

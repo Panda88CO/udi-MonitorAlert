@@ -46,6 +46,7 @@ def analyze_datapoint(
     min_samples: int = DEFAULT_MIN_SAMPLES,
     check_spikes: bool = True,
     baseline_window_ms: int | None = DEFAULT_BASELINE_WINDOW_MS,
+    system_state: str = "default",
 ) -> tuple[bool, int, dict[str, Any]]:
     """Analyze a single datapoint against SQLite statistical baselines.
 
@@ -58,6 +59,7 @@ def analyze_datapoint(
         min_samples: Minimum historical points required before evaluation (default 10).
         check_spikes: Whether to check for sudden step-change rate spikes.
         baseline_window_ms: Historical time window for baseline calculation.
+        system_state: Active system mode/state (e.g. 'away', 'home', 'default').
 
     Returns:
         (is_anomaly: bool, score: int, details: dict)
@@ -68,6 +70,8 @@ def analyze_datapoint(
 
     if not node_id or not control:
         return False, 0, {"reason": "missing_node_or_control"}
+
+    state_clean = str(system_state or "default").strip().lower()
 
     # 1. Rate-of-change / Step-jump check against previous reading
     if check_spikes and event_time_ms is not None:
@@ -92,25 +96,49 @@ def analyze_datapoint(
                             "rate_per_second": round(rate, 2),
                             "prev_value": prev_val,
                             "current_value": val,
+                            "system_state": state_clean,
                         }
 
-    # 2. SQLite statistical baseline analysis
-    baseline = database.get_sensor_baseline(
-        node_id, control, window_ms=baseline_window_ms, current_time_ms=event_time_ms
-    )
+    # 2. SQLite statistical baseline analysis: prefer state-partitioned baseline first
+    baseline = None
+    used_state_baseline = False
+    if state_clean != "default":
+        baseline = database.get_sensor_baseline(
+            node_id, control, window_ms=baseline_window_ms, current_time_ms=event_time_ms, system_state=state_clean
+        )
+        if baseline and baseline.get("count", 0) >= max(3, min_samples // 2):
+            used_state_baseline = True
+
+    if not baseline or not used_state_baseline:
+        baseline = database.get_sensor_baseline(
+            node_id, control, window_ms=baseline_window_ms, current_time_ms=event_time_ms
+        )
+
     if not baseline:
-        return False, 0, {"reason": "no_baseline_data"}
+        return False, 0, {"reason": "no_baseline_data", "system_state": state_clean}
 
     count = baseline.get("count", 0)
-    if count < min_samples:
+    effective_min_samples = max(3, min_samples // 2) if used_state_baseline else min_samples
+    if count < effective_min_samples:
         return False, 0, {
             "reason": "insufficient_samples",
             "count": count,
-            "min_samples": min_samples,
+            "min_samples": effective_min_samples,
+            "system_state": state_clean,
         }
 
     mean = baseline.get("mean", 0.0)
     stddev = baseline.get("stddev", 0.0)
+
+    # Special case: State is quiescent (e.g. Away where flow or light is normally 0)
+    if used_state_baseline and mean <= 0.05 and baseline.get("max", 0.0) <= 0.05 and val > 0.05:
+        return True, 90, {
+            "type": "quiescent_state_violation",
+            "system_state": state_clean,
+            "mean": mean,
+            "current_value": val,
+            "sample_count": count,
+        }
 
     if stddev <= 1e-6:
         # If all past values were identical, check if new value deviates
@@ -120,8 +148,9 @@ def analyze_datapoint(
                 "mean": mean,
                 "current_value": val,
                 "sample_count": count,
+                "system_state": state_clean,
             }
-        return False, 0, {"reason": "zero_variance_normal"}
+        return False, 0, {"reason": "zero_variance_normal", "system_state": state_clean}
 
     z = calculate_z_score(val, mean, stddev)
     if z >= z_threshold:
@@ -136,6 +165,8 @@ def analyze_datapoint(
             "max_val": round(baseline.get("max", 0.0), 2),
             "sample_count": count,
             "current_value": val,
+            "system_state": state_clean,
+            "state_specific": used_state_baseline,
         }
 
     return False, 0, {
@@ -144,6 +175,7 @@ def analyze_datapoint(
         "mean": round(mean, 2),
         "stddev": round(stddev, 2),
         "sample_count": count,
+        "system_state": state_clean,
     }
 
 
@@ -161,8 +193,9 @@ def evaluate_live_event_tasks(
     new_value: Any,
     event_time_ms: int | None = None,
     tasks: list[dict[str, Any]] | None = None,
+    system_state: str = "default",
 ) -> list[dict[str, Any]]:
-    """Evaluate live event against configured monitor tasks (Spike, Contextual Hourly, Threshold).
+    """Evaluate live event against configured monitor tasks or autonomous state baseline.
 
     Returns list of triggered anomaly dicts.
     """
@@ -203,6 +236,7 @@ def evaluate_live_event_tasks(
                 z_threshold=z_thresh,
                 min_samples=min_samples,
                 check_spikes=check_spikes,
+                system_state=system_state,
             )
 
             # Check static ceiling threshold if specified in params
@@ -300,18 +334,20 @@ def evaluate_live_event_tasks(
                     "timestamp_ms": now_ms,
                 })
 
-    # If no explicit tasks were defined for this sensor, perform default autonomous spike check
+    # If no explicit tasks were defined for this sensor, perform autonomous baseline check
     if not matching_tasks:
         is_anom, score, details = analyze_datapoint(
             node_id=node_id,
             new_value=val,
             control=control,
             event_time_ms=now_ms,
+            system_state=system_state,
         )
         if is_anom:
+            state_label = f" [{system_state.upper()}]" if system_state and system_state != "default" else ""
             triggered.append({
-                "task_id": f"auto_{node_id}_{control}",
-                "task_name": f"Autonomous Outlier ({node_id})",
+                "task_id": f"auto_{node_id}_{control}_{system_state}",
+                "task_name": f"Autonomous Outlier ({node_id}){state_label}",
                 "task_type": "autonomous_spike",
                 "severity": "warning",
                 "node_id": node_id,
@@ -320,6 +356,7 @@ def evaluate_live_event_tasks(
                 "score": score,
                 "details": details,
                 "timestamp_ms": now_ms,
+                "system_state": system_state,
             })
 
     return triggered
@@ -412,6 +449,123 @@ def evaluate_periodic_tasks(
                         "threshold": max_zero_threshold,
                         "sample_count": result["sample_count"],
                         "window_minutes": window_minutes,
+                    },
+                    "timestamp_ms": current_ms,
+                })
+
+    return triggered
+
+
+AUTONOMOUS_TEST_COOLDOWNS: dict[str, int] = {}
+DEFAULT_AUTONOMOUS_COOLDOWN_MS = 3600000  # 1 hour
+
+
+def evaluate_state_periodic_testing(
+    system_state: str = "default",
+    test_interval_minutes: int = 15,
+    now_ms: int | None = None,
+) -> list[dict[str, Any]]:
+    """Evaluate all active sensors against state-derived baselines at the configured test cadence.
+
+    Detects:
+    1. Quiescent Continuous Flow / Activity (e.g., water or activity when home is away).
+    2. Persistent upper deviation (e.g. power remaining above 95th percentile for the whole test interval).
+    """
+    current_ms = now_ms if now_ms is not None else int(database._now_ms())
+    interval_ms = max(60000, int(test_interval_minutes * 60000))
+    window_start_ms = current_ms - interval_ms
+    window_end_ms = current_ms
+    state_clean = str(system_state or "default").strip().lower()
+
+    sensors = database.get_active_sensors(window_ms=30 * 86400 * 1000, current_time_ms=current_ms)
+    triggered = []
+
+    for sensor in sensors:
+        node_id = sensor["node_id"]
+        control = sensor["control"]
+        cooldown_key = f"{node_id}_{control}_{state_clean}"
+
+        last_trig = AUTONOMOUS_TEST_COOLDOWNS.get(cooldown_key)
+        if last_trig and (current_ms - last_trig) < DEFAULT_AUTONOMOUS_COOLDOWN_MS:
+            continue
+
+        # 1. Check state baseline prior to the testing window
+        baseline = database.get_sensor_baseline(
+            node_id=node_id,
+            control=control,
+            system_state=state_clean,
+            current_time_ms=window_start_ms,
+        )
+        if not baseline or baseline.get("count", 0) < 3:
+            continue
+
+        mean = baseline.get("mean", 0.0)
+        stddev = baseline.get("stddev", 0.0)
+        max_val = baseline.get("max", 0.0)
+
+        # 2. Quiescent state check (historical mean near zero, e.g. water meter or unoccupied light)
+        if mean <= 0.05 and max_val <= 0.05:
+            sustained = database.check_state_sustained_activity_query(
+                node_id=node_id,
+                control=control,
+                window_start_ms=window_start_ms,
+                window_end_ms=window_end_ms,
+                system_state=state_clean,
+                min_zero_threshold=0.01,
+                min_samples=2,
+            )
+            if sustained:
+                AUTONOMOUS_TEST_COOLDOWNS[cooldown_key] = current_ms
+                triggered.append({
+                    "task_id": f"auto_leak_{node_id}_{control}_{state_clean}",
+                    "task_name": f"Continuous Activity ({node_id}) [{state_clean.upper()}]",
+                    "task_type": "state_sustained_activity",
+                    "severity": "critical" if state_clean == "away" else "warning",
+                    "node_id": node_id,
+                    "control": control,
+                    "value": sustained["avg_value"],
+                    "score": 92,
+                    "details": {
+                        "reason": f"Continuous activity over {test_interval_minutes}m testing interval during quiescent state '{state_clean}'",
+                        "min_observed": sustained["min_value"],
+                        "avg_observed": round(sustained["avg_value"], 2),
+                        "duration_minutes": test_interval_minutes,
+                        "system_state": state_clean,
+                    },
+                    "timestamp_ms": current_ms,
+                })
+                continue
+
+        # 3. Persistent elevated load check (remaining above mean + 2*stddev throughout the test interval)
+        if stddev > 1e-4:
+            upper_threshold = mean + 2.0 * stddev
+            sustained_high = database.check_state_sustained_activity_query(
+                node_id=node_id,
+                control=control,
+                window_start_ms=window_start_ms,
+                window_end_ms=window_end_ms,
+                system_state=state_clean,
+                min_zero_threshold=upper_threshold,
+                min_samples=2,
+            )
+            if sustained_high:
+                AUTONOMOUS_TEST_COOLDOWNS[cooldown_key] = current_ms
+                triggered.append({
+                    "task_id": f"auto_elevated_{node_id}_{control}_{state_clean}",
+                    "task_name": f"Sustained High Load ({node_id}) [{state_clean.upper()}]",
+                    "task_type": "state_elevated_load",
+                    "severity": "warning",
+                    "node_id": node_id,
+                    "control": control,
+                    "value": sustained_high["avg_value"],
+                    "score": 88,
+                    "details": {
+                        "reason": f"Reading remained above {round(upper_threshold, 1)} throughout {test_interval_minutes}m testing interval",
+                        "state_mean": round(mean, 2),
+                        "state_stddev": round(stddev, 2),
+                        "avg_observed": round(sustained_high["avg_value"], 2),
+                        "duration_minutes": test_interval_minutes,
+                        "system_state": state_clean,
                     },
                     "timestamp_ms": current_ms,
                 })

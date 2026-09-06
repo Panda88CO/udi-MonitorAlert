@@ -5,6 +5,7 @@ import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
+from typing import Any
 
 try:
     import urllib3
@@ -632,6 +633,98 @@ def parse_all_registered_nodes():
             if enum_value is not None and enum_text:
                 msg += f" enum[{enum_value}]={enum_text}"
             print(msg)
+
+
+def fetch_variable_definitions(rest_base_url, auth=None, timeout=10) -> dict[str, Any]:
+    """Fetch variable definitions (Type 2: State, Type 1: Integer) from IoX REST API.
+
+    Returns:
+        dict with:
+            - 'by_name': dict mapping variable names (and normalized $name) to var info dict
+            - 'by_id': dict mapping (var_type, var_id) tuple to friendly name
+            - 'definitions': list of all variable definition dicts
+    """
+    by_name: dict[str, dict[str, Any]] = {}
+    by_id: dict[tuple[int, int], str] = {}
+    definitions: list[dict[str, Any]] = []
+
+    base_clean = (rest_base_url or "").rstrip("/")
+    if not base_clean:
+        return {"by_name": by_name, "by_id": by_id, "definitions": definitions}
+
+    # Query Type 2 (State variables) and Type 1 (Integer variables)
+    for var_type in (2, 1):
+        url = f"{base_clean}/vars/definitions/{var_type}"
+        xml_root = _fetch_xml_with_auth(url, auth=auth, timeout=timeout)
+        if xml_root is None:
+            continue
+
+        for e in xml_root.findall(".//e"):
+            raw_id = e.attrib.get("id")
+            name = e.attrib.get("name") or (e.text or "").strip()
+            vid = _coerce_int(raw_id)
+            if vid is None or not name:
+                continue
+
+            info = {
+                "type": var_type,
+                "id": vid,
+                "name": name,
+                "is_state": (var_type == 2),
+            }
+            definitions.append(info)
+            by_id[(var_type, vid)] = name
+
+            # Register exact and normalized lookups
+            by_name[name] = info
+            by_name[f"${name}"] = info
+            by_name[f"VAR.{var_type}.{vid}"] = info
+            by_name[f"var.{var_type}.{vid}"] = info
+            # Case-insensitive fallback keys
+            by_name[name.lower()] = info
+            by_name[f"${name.lower()}"] = info
+
+    return {"by_name": by_name, "by_id": by_id, "definitions": definitions}
+
+
+def fetch_variable_value(rest_base_url, auth=None, var_type: int = 2, var_id: int = 1, timeout=10) -> float | None:
+    """Fetch the current value of a specific ISY variable via REST."""
+    base_clean = (rest_base_url or "").rstrip("/")
+    if not base_clean:
+        return None
+
+    url = f"{base_clean}/vars/get/{int(var_type)}/{int(var_id)}"
+    xml_root = _fetch_xml_with_auth(url, auth=auth, timeout=timeout)
+    if xml_root is None:
+        return None
+
+    val_elem = xml_root.find(".//val")
+    if val_elem is not None and val_elem.text is not None:
+        return _coerce_float(val_elem.text.strip())
+    return None
+
+
+def fetch_all_variable_values(rest_base_url, auth=None, var_type: int = 2, timeout=10) -> dict[int, float]:
+    """Fetch current values for all variables of a given type (Type 2 State, Type 1 Integer)."""
+    out: dict[int, float] = {}
+    base_clean = (rest_base_url or "").rstrip("/")
+    if not base_clean:
+        return out
+
+    url = f"{base_clean}/vars/get/{int(var_type)}"
+    xml_root = _fetch_xml_with_auth(url, auth=auth, timeout=timeout)
+    if xml_root is None:
+        return out
+
+    for var_elem in xml_root.findall(".//var"):
+        vid = _coerce_int(var_elem.attrib.get("id"))
+        val_elem = var_elem.find("val")
+        if vid is not None and val_elem is not None and val_elem.text:
+            num = _coerce_float(val_elem.text.strip())
+            if num is not None:
+                out[vid] = num
+
+    return out
 
 
 if __name__ == "__main__":

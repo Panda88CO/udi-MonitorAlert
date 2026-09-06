@@ -208,7 +208,11 @@ def _to_control_meta(row: sqlite3.Row) -> dict[str, Any]:
 
 def _ensure_events_dynamic_numeric_schema(cursor: sqlite3.Cursor):
     columns = _get_table_columns(cursor, "events_dynamic")
-    expected = {"id", "event_time_ms", "node_id", "control", "value"}
+    if columns and "system_state" not in columns:
+        cursor.execute("ALTER TABLE events_dynamic ADD COLUMN system_state TEXT NOT NULL DEFAULT 'default'")
+        columns = _get_table_columns(cursor, "events_dynamic")
+
+    expected = {"id", "event_time_ms", "node_id", "control", "value", "system_state"}
 
     if set(columns) == expected:
         return
@@ -220,7 +224,8 @@ def _ensure_events_dynamic_numeric_schema(cursor: sqlite3.Cursor):
             event_time_ms INTEGER NOT NULL,
             node_id TEXT NOT NULL,
             control TEXT NOT NULL,
-            value REAL NOT NULL
+            value REAL NOT NULL,
+            system_state TEXT NOT NULL DEFAULT 'default'
         )
         """
     )
@@ -235,10 +240,12 @@ def _ensure_events_dynamic_numeric_schema(cursor: sqlite3.Cursor):
     else:
         value_expr = "NULL"
 
+    state_expr = "system_state" if "system_state" in columns else "'default'"
+
     cursor.execute(
         f"""
-        INSERT INTO events_dynamic_new (id, event_time_ms, node_id, control, value)
-        SELECT id, event_time_ms, node_id, control, {value_expr}
+        INSERT INTO events_dynamic_new (id, event_time_ms, node_id, control, value, system_state)
+        SELECT id, event_time_ms, node_id, control, {value_expr}, {state_expr}
         FROM events_dynamic
         WHERE {value_expr} IS NOT NULL
         """
@@ -306,12 +313,16 @@ def init_db():
             event_time_ms INTEGER NOT NULL,
             node_id TEXT NOT NULL,
             control TEXT NOT NULL,
-            value REAL NOT NULL
+            value REAL NOT NULL,
+            system_state TEXT NOT NULL DEFAULT 'default'
         )
         """
     )
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_events_node_control_time ON events_dynamic (node_id, control, event_time_ms)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_node_control_state_time ON events_dynamic (node_id, control, system_state, event_time_ms)"
     )
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_events_time ON events_dynamic (event_time_ms)"
@@ -337,6 +348,9 @@ def init_db():
     # Recreate indexes after potential table rebuild.
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_events_node_control_time ON events_dynamic (node_id, control, event_time_ms)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_node_control_state_time ON events_dynamic (node_id, control, system_state, event_time_ms)"
     )
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_events_time ON events_dynamic (event_time_ms)"
@@ -746,6 +760,7 @@ def insert_dynamic_event(
     control: str,
     value: Any,
     event_time_ms: int | None,
+    system_state: str = "default",
 ):
     if not node_id or not control:
         return
@@ -756,6 +771,8 @@ def insert_dynamic_event(
         LOGGER.warning("Skipping non-numeric dynamic value: node=%s control=%s value=%s", node_id, control, value)
         return
 
+    state_clean = str(system_state or "default").strip().lower()
+
     conn = _connect()
     cursor = conn.cursor()
     cursor.execute(
@@ -764,11 +781,12 @@ def insert_dynamic_event(
             event_time_ms,
             node_id,
             control,
-            value
+            value,
+            system_state
         )
-        VALUES (?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (event_ms, node_id, control, value_num),
+        (event_ms, node_id, control, value_num, state_clean),
     )
     conn.commit()
     conn.close()
@@ -1190,43 +1208,47 @@ def get_sensor_baseline(
     control: str,
     window_ms: int | None = None,
     current_time_ms: int | None = None,
+    system_state: str | None = None,
 ) -> dict[str, Any] | None:
-    """Compute count, mean, stddev, min, and max in SQLite for a given sensor control."""
+    """Compute count, mean, stddev, min, and max in SQLite for a given sensor control, optionally partitioned by system_state."""
     if not node_id or not control:
         return None
 
     conn = _connect()
     cursor = conn.cursor()
+    base_ms = current_time_ms if current_time_ms is not None else _now_ms()
+
+    conditions = ["node_id = ?", "control = ?"]
+    params: list[Any] = [str(node_id), str(control)]
+
+    if system_state:
+        conditions.append("system_state = ?")
+        params.append(str(system_state).strip().lower())
+
     if window_ms is not None and window_ms > 0:
-        base_ms = current_time_ms if current_time_ms is not None else _now_ms()
         cutoff_ms = base_ms - int(window_ms)
-        cursor.execute(
-            """
-            SELECT
-                COUNT(*) AS count,
-                AVG(value) AS mean,
-                SQRT(AVG(value * value) - AVG(value) * AVG(value)) AS stddev,
-                MIN(value) AS min_val,
-                MAX(value) AS max_val
-            FROM events_dynamic
-            WHERE node_id = ? AND control = ? AND event_time_ms >= ?
-            """,
-            (str(node_id), str(control), cutoff_ms),
-        )
-    else:
-        cursor.execute(
-            """
-            SELECT
-                COUNT(*) AS count,
-                AVG(value) AS mean,
-                SQRT(AVG(value * value) - AVG(value) * AVG(value)) AS stddev,
-                MIN(value) AS min_val,
-                MAX(value) AS max_val
-            FROM events_dynamic
-            WHERE node_id = ? AND control = ?
-            """,
-            (str(node_id), str(control)),
-        )
+        conditions.append("event_time_ms >= ?")
+        params.append(cutoff_ms)
+        conditions.append("event_time_ms <= ?")
+        params.append(base_ms)
+    elif current_time_ms is not None:
+        conditions.append("event_time_ms <= ?")
+        params.append(base_ms)
+
+    where_clause = " AND ".join(conditions)
+    cursor.execute(
+        f"""
+        SELECT
+            COUNT(*) AS count,
+            AVG(value) AS mean,
+            SQRT(AVG(value * value) - AVG(value) * AVG(value)) AS stddev,
+            MIN(value) AS min_val,
+            MAX(value) AS max_val
+        FROM events_dynamic
+        WHERE {where_clause}
+        """,
+        tuple(params),
+    )
     row = cursor.fetchone()
     conn.close()
 
@@ -1240,6 +1262,93 @@ def get_sensor_baseline(
         "min": float(row["min_val"]) if row["min_val"] is not None else 0.0,
         "max": float(row["max_val"]) if row["max_val"] is not None else 0.0,
     }
+
+
+def check_state_sustained_activity_query(
+    node_id: str,
+    control: str,
+    window_start_ms: int,
+    window_end_ms: int,
+    system_state: str | None = None,
+    min_zero_threshold: float = 0.01,
+    min_samples: int = 2,
+) -> dict[str, Any] | None:
+    """Check if all events in the time window were strictly above min_zero_threshold for a given state.
+
+    Used by autonomous state testing to detect persistent non-zero flow/activity during quiescent states (e.g. water leaks when away).
+    """
+    conn = _connect()
+    cursor = conn.cursor()
+    conditions = ["node_id = ?", "control = ?", "event_time_ms >= ?", "event_time_ms <= ?"]
+    params: list[Any] = [str(node_id), str(control), window_start_ms, window_end_ms]
+
+    if system_state:
+        conditions.append("system_state = ?")
+        params.append(str(system_state).strip().lower())
+
+    where_clause = " AND ".join(conditions)
+    cursor.execute(
+        f"""
+        SELECT
+            COUNT(*) AS sample_count,
+            MIN(value) AS min_val,
+            MAX(value) AS max_val,
+            AVG(value) AS avg_val
+        FROM events_dynamic
+        WHERE {where_clause}
+        """,
+        tuple(params),
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row or row["sample_count"] is None:
+        return None
+
+    cnt = int(row["sample_count"])
+    if cnt < min_samples:
+        return None
+
+    min_val = float(row["min_val"]) if row["min_val"] is not None else 0.0
+    if min_val > min_zero_threshold:
+        return {
+            "node_id": node_id,
+            "control": control,
+            "sample_count": cnt,
+            "min_value": min_val,
+            "max_value": float(row["max_val"]),
+            "avg_value": float(row["avg_val"]),
+        }
+    return None
+
+
+def get_active_sensors(window_ms: int | None = None, current_time_ms: int | None = None) -> list[dict[str, str]]:
+    """Return distinct (node_id, control) pairs recorded in the database."""
+    conn = _connect()
+    cursor = conn.cursor()
+    if window_ms is not None and window_ms > 0:
+        base_ms = current_time_ms if current_time_ms is not None else _now_ms()
+        cutoff_ms = base_ms - int(window_ms)
+        cursor.execute(
+            """
+            SELECT DISTINCT node_id, control
+            FROM events_dynamic
+            WHERE event_time_ms >= ?
+            ORDER BY node_id, control
+            """,
+            (cutoff_ms,),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT DISTINCT node_id, control
+            FROM events_dynamic
+            ORDER BY node_id, control
+            """
+        )
+    rows = cursor.fetchall()
+    conn.close()
+    return [{"node_id": r["node_id"], "control": r["control"]} for r in rows]
 
 
 def get_last_event(node_id: str, control: str) -> dict[str, Any] | None:
