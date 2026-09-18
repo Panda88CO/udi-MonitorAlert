@@ -58,10 +58,10 @@ class TestNotificationEngine(unittest.TestCase):
         mock_smtp.return_value.__enter__.return_value = mock_server
 
         config = {
-            "smtp_host": "smtp.example.com",
+            "smtp_host": "  smtp.example.com  ",
             "smtp_port": 587,
-            "smtp_user": "user@example.com",
-            "smtp_password": "secret_password",
+            "smtp_user": " user@example.com ",
+            "smtp_password": "  abcd efgh ijkl mnop  ",
             "notify_email_to": "alert@example.com, other@example.com",
         }
 
@@ -72,7 +72,7 @@ class TestNotificationEngine(unittest.TestCase):
         )
         self.assertTrue(success)
         mock_server.starttls.assert_called_once()
-        mock_server.login.assert_called_once_with("user@example.com", "secret_password")
+        mock_server.login.assert_called_once_with("user@example.com", "abcdefghijklmnop")
         mock_server.sendmail.assert_called_once()
 
     @patch("smtplib.SMTP_SSL")

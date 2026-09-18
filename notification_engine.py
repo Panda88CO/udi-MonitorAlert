@@ -164,12 +164,14 @@ def send_email_notification(
     html_body: str | None = None,
 ) -> bool:
     """Send notification via SMTP."""
-    host = config.get("smtp_host")
+    host = str(config.get("smtp_host") or "").strip()
     port = int(config.get("smtp_port") or 587)
-    user = config.get("smtp_user")
-    password = config.get("smtp_password")
+    user = str(config.get("smtp_user") or "").strip() or None
+    raw_password = config.get("smtp_password")
+    # Clean app passwords: remove all internal and surrounding whitespace
+    password = str(raw_password).strip().replace(" ", "") if raw_password is not None else None
     to_addr = config.get("notify_email_to")
-    from_addr = config.get("smtp_from") or user or "alerts@eisy.local"
+    from_addr = str(config.get("smtp_from") or "").strip() or user or "alerts@eisy.local"
 
     if not host or not to_addr:
         LOGGER.debug("Email notification skipped: smtp_host or notify_email_to missing.")
