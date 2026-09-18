@@ -169,7 +169,7 @@ def send_email_notification(
     from_addr = config.get("smtp_from") or user or "alerts@eisy.local"
 
     if not host or not to_addr:
-        LOGGER.warning("Email notification skipped: smtp_host or notify_email_to missing.")
+        LOGGER.debug("Email notification skipped: smtp_host or notify_email_to missing.")
         return False
 
     recipients = [addr.strip() for addr in to_addr.split(",") if addr.strip()]
@@ -225,8 +225,12 @@ def send_udmobile_iox_notification(
     pwd = config.get("password")
     secure = bool(config.get("secure", False))
 
-    content_id = config.get("notify_udmobile_content_id") or "1"
+    content_id = config.get("notify_udmobile_content_id")
     recipient_id = config.get("notify_udmobile_recipient_id") or "1"
+
+    if not content_id:
+        LOGGER.debug("IoX notification skipped: notify_udmobile_content_id not configured.")
+        return False
 
     if not host or not user or not pwd:
         LOGGER.debug("IoX notification skipped: connection credentials missing.")
@@ -254,6 +258,12 @@ def send_udmobile_iox_notification(
             else:
                 LOGGER.warning("IoX notification endpoint returned status %s", status)
                 return False
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            LOGGER.debug("IoX notification endpoint not found (HTTP 404): content_id=%s recipient_id=%s", content_id, recipient_id)
+        else:
+            LOGGER.warning("IoX notification HTTP error %s: %s", exc.code, exc)
+        return False
     except Exception as exc:
         LOGGER.warning("Failed to trigger IoX notification: %s", exc)
         return False

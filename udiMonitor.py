@@ -51,6 +51,7 @@ import database
 import ml_engine
 import notification_engine
 from nucore_subscriber import NuCoreEventSubscriber, NuCoreSubscriberError
+import parse_rest
 from parse_rest import build_control_metadata_records, build_profile_catalog_records
 
 try:
@@ -91,7 +92,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.3")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.4")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -797,6 +798,18 @@ class Controller(Node):
             except Exception as exc:
                 LOGGER.warning("Failed to synchronize monitor tasks from customData: %s", exc)
 
+        # Synchronize configured monitor tasks from local monitors.json file if present
+        monitors_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "monitors.json")
+        if os.path.exists(monitors_file):
+            try:
+                with open(monitors_file, "r") as f:
+                    file_monitors = json.load(f)
+                if isinstance(file_monitors, list):
+                    synced = database.bulk_upsert_monitor_tasks(file_monitors)
+                    LOGGER.info("Synchronized %d monitor tasks from monitors.json", synced)
+            except Exception as exc:
+                LOGGER.warning("Failed to load monitors.json: %s", exc)
+
         try:
             self.active_tasks = database.load_active_monitor_tasks()
             LOGGER.info("Loaded active monitor tasks: count=%s", len(self.active_tasks))
@@ -1344,7 +1357,7 @@ class Controller(Node):
 
         if not records:
             LOGGER.info("Profile catalog refresh returned no records: %s", stats)
-            return False
+            return True
 
         try:
             upserted = database.bulk_upsert_profile_control_schema(records)
@@ -1865,7 +1878,7 @@ class Controller(Node):
 
         is_valid = self._validate_value_with_lookup(value, control_meta)
         if is_valid is False:
-            LOGGER.warning(
+            LOGGER.debug(
                 "Lookup validation out-of-range: node=%s control=%s value=%s uom=%s editor=%s",
                 event["node_id"],
                 event["control"],

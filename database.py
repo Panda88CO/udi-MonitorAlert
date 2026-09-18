@@ -768,7 +768,7 @@ def insert_dynamic_event(
     event_ms = event_time_ms if event_time_ms is not None else _now_ms()
     value_num = _coerce_float(value)
     if value_num is None:
-        LOGGER.warning("Skipping non-numeric dynamic value: node=%s control=%s value=%s", node_id, control, value)
+        LOGGER.debug("Skipping non-numeric dynamic value: node=%s control=%s value=%s", node_id, control, value)
         return
 
     state_clean = str(system_state or "default").strip().lower()

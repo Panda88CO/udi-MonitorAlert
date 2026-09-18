@@ -71,6 +71,10 @@ def analyze_datapoint(
     if not node_id or not control:
         return False, 0, {"reason": "missing_node_or_control"}
 
+    ctrl_upper = str(control).strip().upper()
+    if ctrl_upper in ("TIME", "TIMESTAMP") or ctrl_upper.endswith("_TIME") or ctrl_upper.endswith("_TIMESTAMP"):
+        return False, 0, {"reason": "timestamp_control_ignored"}
+
     state_clean = str(system_state or "default").strip().lower()
 
     # 1. Rate-of-change / Step-jump check against previous reading
@@ -84,15 +88,24 @@ def analyze_datapoint(
                 # If reading occurred within 60s and jumped abnormally
                 if 0 < delta_ms <= 60000:
                     delta_val = abs(val - prev_val)
-                    delta_sec = delta_ms / 1000.0
+                    delta_sec = max(delta_ms / 1000.0, 1.0)
                     rate = delta_val / delta_sec
-                    # Flag massive sudden jump > 50 units with rapid rate
-                    if delta_val >= 50.0 and rate >= 5.0:
+
+                    # Power controls (Watts) naturally experience large jumps when appliances switch on/off
+                    is_power = ctrl_upper in ("CPW", "WATTS", "POWER", "CURR_POWER")
+                    min_delta = 5000.0 if is_power else 50.0
+                    min_rate = 500.0 if is_power else 5.0
+
+                    # Relative change check: if base value is high, requiring proportional change avoids false positives
+                    relative_change = delta_val / max(abs(prev_val), 1.0)
+                    significant_change = relative_change >= 0.25 if abs(prev_val) >= 100.0 else True
+
+                    if delta_val >= min_delta and rate >= min_rate and significant_change:
                         score = min(100, int(85 + min(15, rate)))
                         return True, score, {
                             "type": "step_spike",
                             "delta_value": round(delta_val, 2),
-                            "delta_seconds": round(delta_sec, 2),
+                            "delta_seconds": round(delta_ms / 1000.0, 2),
                             "rate_per_second": round(rate, 2),
                             "prev_value": prev_val,
                             "current_value": val,
@@ -185,6 +198,10 @@ def _is_task_in_cooldown(task: dict[str, Any], now_ms: int) -> bool:
         return False
     cooldown = task.get("cooldown_ms", 3600000)
     return (now_ms - last_trig) < cooldown
+
+
+AUTONOMOUS_OUTLIER_COOLDOWNS: dict[str, int] = {}
+DEFAULT_AUTONOMOUS_OUTLIER_COOLDOWN_MS: int = 300000  # 5 minutes
 
 
 def evaluate_live_event_tasks(
@@ -334,30 +351,37 @@ def evaluate_live_event_tasks(
                     "timestamp_ms": now_ms,
                 })
 
+    ctrl_upper = str(control).strip().upper()
+    is_timestamp = ctrl_upper in ("TIME", "TIMESTAMP") or ctrl_upper.endswith("_TIME") or ctrl_upper.endswith("_TIMESTAMP")
+
     # If no explicit tasks were defined for this sensor, perform autonomous baseline check
-    if not matching_tasks:
-        is_anom, score, details = analyze_datapoint(
-            node_id=node_id,
-            new_value=val,
-            control=control,
-            event_time_ms=now_ms,
-            system_state=system_state,
-        )
-        if is_anom:
-            state_label = f" [{system_state.upper()}]" if system_state and system_state != "default" else ""
-            triggered.append({
-                "task_id": f"auto_{node_id}_{control}_{system_state}",
-                "task_name": f"Autonomous Outlier ({node_id}){state_label}",
-                "task_type": "autonomous_spike",
-                "severity": "warning",
-                "node_id": node_id,
-                "control": control,
-                "value": val,
-                "score": score,
-                "details": details,
-                "timestamp_ms": now_ms,
-                "system_state": system_state,
-            })
+    if not matching_tasks and not is_timestamp:
+        auto_key = f"auto_{node_id}_{control}_{system_state}"
+        last_trig = AUTONOMOUS_OUTLIER_COOLDOWNS.get(auto_key)
+        if last_trig is None or (now_ms - last_trig) >= DEFAULT_AUTONOMOUS_OUTLIER_COOLDOWN_MS:
+            is_anom, score, details = analyze_datapoint(
+                node_id=node_id,
+                new_value=val,
+                control=control,
+                event_time_ms=now_ms,
+                system_state=system_state,
+            )
+            if is_anom:
+                AUTONOMOUS_OUTLIER_COOLDOWNS[auto_key] = now_ms
+                state_label = f" [{system_state.upper()}]" if system_state and system_state != "default" else ""
+                triggered.append({
+                    "task_id": auto_key,
+                    "task_name": f"Autonomous Outlier ({node_id}){state_label}",
+                    "task_type": "autonomous_spike",
+                    "severity": "warning",
+                    "node_id": node_id,
+                    "control": control,
+                    "value": val,
+                    "score": score,
+                    "details": details,
+                    "timestamp_ms": now_ms,
+                    "system_state": system_state,
+                })
 
     return triggered
 

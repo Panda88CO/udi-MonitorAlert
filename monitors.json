@@ -1,0 +1,75 @@
+[
+  {
+    "task_id": "main_power_surge",
+    "name": "Whole House Power Surge",
+    "task_type": "spike",
+    "node_id_pattern": "n008_445282_totalus",
+    "control_pattern": "CPW",
+    "params": {
+      "z_threshold": 3.0,
+      "min_samples": 10,
+      "max_value": 30000.0,
+      "check_spikes": true
+    },
+    "severity": "warning",
+    "enabled": true,
+    "cooldown_ms": 1800000
+  },
+  {
+    "task_id": "main_power_stuck",
+    "name": "Main Power Meter Watchdog",
+    "task_type": "stuck_watchdog",
+    "node_id_pattern": "n008_445282_totalus",
+    "control_pattern": "CPW",
+    "params": {
+      "max_silent_minutes": 60
+    },
+    "severity": "warning",
+    "enabled": true,
+    "cooldown_ms": 3600000
+  },
+  {
+    "task_id": "weather_temp_hourly",
+    "name": "Outdoor Temperature Anomaly",
+    "task_type": "contextual_hourly",
+    "node_id_pattern": "n007_233328",
+    "control_pattern": "CLITEMP",
+    "params": {
+      "z_threshold": 3.0,
+      "min_samples": 5,
+      "window_days": 14
+    },
+    "severity": "warning",
+    "enabled": true,
+    "cooldown_ms": 3600000
+  },
+  {
+    "task_id": "weather_station_stuck",
+    "name": "Weather Station Watchdog",
+    "task_type": "stuck_watchdog",
+    "node_id_pattern": "n007_233328",
+    "control_pattern": "CLITEMP",
+    "params": {
+      "max_silent_minutes": 120
+    },
+    "severity": "warning",
+    "enabled": true,
+    "cooldown_ms": 7200000
+  },
+  {
+    "task_id": "weather_humidity_spike",
+    "name": "Outdoor Humidity Surge",
+    "task_type": "spike",
+    "node_id_pattern": "n007_233328",
+    "control_pattern": "CLIHUM",
+    "params": {
+      "z_threshold": 3.0,
+      "min_samples": 10,
+      "check_spikes": true
+    },
+    "severity": "warning",
+    "enabled": true,
+    "cooldown_ms": 1800000
+  }
+]
+

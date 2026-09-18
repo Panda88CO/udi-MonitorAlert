@@ -102,6 +102,52 @@ class TestAnomalyDetection(unittest.TestCase):
         self.assertEqual(spike['delta_seconds'], 5.0)
         self.assertEqual(spike['rate_per_second'], 90.0)
 
+    def test_timestamp_controls_ignored(self):
+        database.insert_dynamic_event('node_t', 'TIME', 1789765766.0, event_time_ms=10000)
+        is_anom, score, details = ml_engine.analyze_datapoint(
+            'node_t', 1789766064.0, control='TIME', event_time_ms=15000, check_spikes=True
+        )
+        self.assertFalse(is_anom)
+        self.assertEqual(details['reason'], 'timestamp_control_ignored')
+
+        # Live task evaluation should also produce no autonomous outlier alerts for TIME
+        anomalies = ml_engine.evaluate_live_event_tasks(
+            'node_t', 'TIME', 1789766064.0, event_time_ms=15000, tasks=[]
+        )
+        self.assertEqual(len(anomalies), 0)
+
+    def test_power_control_step_spike_thresholds(self):
+        # Small power change on large baseline (e.g. 26411 to 26324, delta 87W on ~26kW) should NOT trigger
+        database.insert_dynamic_event('node_pwr', 'CPW', 26411.0, event_time_ms=10000)
+        is_anom, score, details = ml_engine.analyze_datapoint(
+            'node_pwr', 26324.0, control='CPW', event_time_ms=20000, check_spikes=True
+        )
+        self.assertFalse(is_anom)
+
+        # Large power jump (e.g. 100 to 6000W) SHOULD trigger
+        database.insert_dynamic_event('node_pwr2', 'CPW', 100.0, event_time_ms=10000)
+        is_anom, score, details = ml_engine.analyze_datapoint(
+            'node_pwr2', 6000.0, control='CPW', event_time_ms=12000, check_spikes=True
+        )
+        self.assertTrue(is_anom)
+        self.assertEqual(details['type'], 'step_spike')
+
+    def test_autonomous_outlier_cooldown(self):
+        ml_engine.AUTONOMOUS_OUTLIER_COOLDOWNS.clear()
+        database.insert_dynamic_event('node_cool', 'CLIHUM', 500.0, event_time_ms=10000)
+
+        # First alert triggered
+        anoms1 = ml_engine.evaluate_live_event_tasks(
+            'node_cool', 'CLIHUM', 50.0, event_time_ms=15000, tasks=[]
+        )
+        self.assertEqual(len(anoms1), 1)
+
+        # Immediate second event within cooldown should be suppressed
+        anoms2 = ml_engine.evaluate_live_event_tasks(
+            'node_cool', 'CLIHUM', 45.0, event_time_ms=16000, tasks=[]
+        )
+        self.assertEqual(len(anoms2), 0)
+
 if __name__ == '__main__':
     unittest.main()
 
