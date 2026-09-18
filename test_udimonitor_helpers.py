@@ -53,5 +53,20 @@ class TestUdiMonitorHelpers(unittest.TestCase):
         self.assertFalse(udiMonitor.Controller._validate_value_with_lookup(None, 150.0, meta))
         self.assertFalse(udiMonitor.Controller._validate_value_with_lookup(None, -30.0, meta))
 
+    def test_controller_driver_definitions(self):
+        self.assertEqual(udiMonitor.Controller.id, "ML_CTRL")
+        self.assertIn("QUERY", udiMonitor.Controller.commands)
+        driver_names = [d["driver"] for d in udiMonitor.Controller.drivers]
+        for expected in ["ST", "ALARM", "GV0", "GV1", "GV2", "GV3"]:
+            self.assertIn(expected, driver_names)
+
+    def test_controller_query(self):
+        from unittest.mock import MagicMock
+        mock_poly = MagicMock()
+        ctrl = udiMonitor.Controller(mock_poly, "ml_ctrl", "ml_ctrl", "ML Controller")
+        ctrl.reportDrivers = MagicMock()
+        ctrl.query()
+        ctrl.reportDrivers.assert_called_once()
+
 if __name__ == "__main__":
     unittest.main()

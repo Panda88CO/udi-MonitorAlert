@@ -21,6 +21,9 @@ except ImportError:
             self.address = address
             self.name = name
             self.drivers = {}
+            if hasattr(self.__class__, 'drivers') and isinstance(self.__class__.drivers, list):
+                for d in self.__class__.drivers:
+                    self.drivers[d['driver']] = d.get('value')
         def setDriver(self, driver, value, *args, **kwargs):
             self.drivers[driver] = value
         def reportDrivers(self):
@@ -92,7 +95,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.4")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.5")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -236,7 +239,8 @@ NODE_DEFINITIONS = {
             {"driver": "ALARM", "editor": "I_SYSTEM_STATUS", "uom": 2},
             {"driver": "GV0", "editor": "I_PERCENT", "uom": 51},
             {"driver": "GV1", "editor": "I_INDEX", "uom": 56},
-            {"driver": "GV2", "editor": "I_INDEX", "uom": 56}
+            {"driver": "GV2", "editor": "I_INDEX", "uom": 56},
+            {"driver": "GV3", "editor": "I_INDEX", "uom": 25}
         ],
         "commands": [
             {"id": "QUERY"}
@@ -414,6 +418,18 @@ def parse_monitor_options(
 class Controller(Node):
     id = 'ML_CTRL'
     commands = {'QUERY': 'query'}
+    drivers = [
+        {'driver': 'ST', 'value': 1, 'uom': 2},
+        {'driver': 'ALARM', 'value': 0, 'uom': 2},
+        {'driver': 'GV0', 'value': 0, 'uom': 51},
+        {'driver': 'GV1', 'value': 0, 'uom': 56},
+        {'driver': 'GV2', 'value': 0, 'uom': 56},
+        {'driver': 'GV3', 'value': 1, 'uom': 25},
+    ]
+
+    def query(self, command=None):
+        if hasattr(self, 'reportDrivers'):
+            self.reportDrivers()
 
     def __init__(self, polyglot, primary, address, name):
         super(Controller, self).__init__(polyglot, primary, address, name)
@@ -763,6 +779,12 @@ class Controller(Node):
         return True
 
     def stop(self):
+        try:
+            self.setDriver('ST', 0)
+            if hasattr(self, 'reportDrivers'):
+                self.reportDrivers()
+        except Exception:
+            pass
         self._stop_notification_worker()
         self._stop_watchdog_loop()
         LOGGER.info(
@@ -774,6 +796,12 @@ class Controller(Node):
 
     def start(self):
         LOGGER.info("Controller startup beginning: address=%s version=%s", self.address, VERSION)
+        try:
+            self.setDriver('ST', 1)
+            if hasattr(self, 'reportDrivers'):
+                self.reportDrivers()
+        except Exception:
+            pass
         custom_data = self.poly.config.get("customData", {})
         if isinstance(custom_data, dict):
             LOGGER.debug("Startup customData keys: %s", sorted(custom_data.keys()))
