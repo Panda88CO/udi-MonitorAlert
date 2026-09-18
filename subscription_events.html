@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IoX / ISY Subscription Events Reference</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --code-bg: #090d16;
+      --badge-bg: #1e3a5f;
+      --badge-text: #7dd3fc;
+      --warning-bg: #451a03;
+      --warning-border: #b45309;
+      --warning-text: #fde68a;
+      --sidebar-w: 280px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    aside {
+      width: var(--sidebar-w);
+      background: #090d16;
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-header {
+      padding: 1.25rem 1rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .sidebar-header h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .sidebar-header p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    .search-box {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .search-input {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      background: var(--card-bg);
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+    }
+    nav.sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.75rem 0.5rem;
+    }
+    nav.sidebar-nav a {
+      display: block;
+      padding: 0.4rem 0.6rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      border-radius: 4px;
+      transition: all 0.15s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    nav.sidebar-nav a:hover, nav.sidebar-nav a.active {
+      color: var(--text);
+      background: var(--accent-glow);
+      border-left: 2px solid var(--accent);
+    }
+    nav.sidebar-nav .nav-category {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-top: 0.75rem;
+      padding: 0.2rem 0.6rem;
+    }
+
+    /* Main Content */
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 2rem 3rem;
+      scroll-behavior: smooth;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    /* Header & Badges */
+    .doc-hero {
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .doc-hero h2 {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #fff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .doc-badges {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+    .badge.purple {
+      background: #2e1065;
+      color: #c084fc;
+      border-color: rgba(192, 132, 252, 0.3);
+    }
+
+    /* Cards & Sections */
+    section {
+      margin-bottom: 2.5rem;
+      scroll-margin-top: 1.5rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin-top: 1rem;
+    }
+    h3 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    h4 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-top: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+    p { margin-bottom: 0.75rem; color: #cbd5e1; font-size: 0.95rem; }
+
+    /* Code blocks */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: "JetBrains Mono", Consolas, Monaco, "Courier New", monospace;
+      font-size: 0.88rem;
+      margin: 0.75rem 0;
+      position: relative;
+    }
+    code {
+      font-family: "JetBrains Mono", Consolas, Monaco, "Courier New", monospace;
+      color: var(--accent);
+      background: rgba(56, 189, 248, 0.1);
+      padding: 0.15rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.88em;
+    }
+    pre code {
+      background: transparent;
+      padding: 0;
+      color: #e2e8f0;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .copy-btn:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    /* Tables */
+    .table-wrapper {
+      overflow-x: auto;
+      margin: 1rem 0;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      background: var(--card-bg);
+      text-align: left;
+    }
+    th {
+      background: #090d16;
+      padding: 0.65rem 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+    }
+    td {
+      padding: 0.6rem 0.85rem;
+      border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+      color: #e2e8f0;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td {
+      background: rgba(56, 189, 248, 0.04);
+    }
+    .cell-constant {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.82rem;
+      color: #a5f3fc;
+      cursor: pointer;
+    }
+    .cell-constant:hover {
+      text-decoration: underline;
+    }
+
+    /* Alerts */
+    .alert-box {
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      display: flex;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .alert-warning {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      color: var(--warning-text);
+    }
+    .alert-info {
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: #bae6fd;
+    }
+
+    /* Hidden when filtered */
+    .filter-hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Left Interactive Sidebar -->
+  <aside>
+    <div class="sidebar-header">
+      <h1>📡 IoX Events Reference</h1>
+      <p>Universal Devices Event Subscription Model</p>
+    </div>
+    <div class="search-box">
+      <input type="text" id="filterInput" class="search-input" placeholder="Quick filter (e.g., ST, _3, Z-Wave)..." autocomplete="off" />
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <div class="nav-category">Core</div>
+      <a href="#overview">Overview & Delivery</a>
+      <a href="#source-files">Source Files</a>
+      <a href="#driver-controls">Driver Controls (ST, OL, etc.)</a>
+
+      <div class="nav-category">System Event Categories (_X)</div>
+      <a href="#cat-0">_0 Heartbeat</a>
+      <a href="#cat-1">_1 Trigger & Program Events</a>
+      <a href="#cat-2">_2 Device Specific</a>
+      <a href="#cat-3">_3 Nodes Updated Events</a>
+      <a href="#cat-4">_4 System Configuration</a>
+      <a href="#cat-5">_5 System Busy</a>
+      <a href="#cat-6">_6 Internet Access</a>
+      <a href="#cat-7">_7 Progress Events</a>
+      <a href="#cat-8">_8 Security Systems</a>
+      <a href="#cat-9">_9 System Alerts</a>
+      <a href="#cat-10">_10 Electricity / OpenADR</a>
+      <a href="#cat-11">_11 Climate Events</a>
+      <a href="#cat-12">_12 AMI Smart Meter (SEP)</a>
+      <a href="#cat-13">_13 Electricity Monitor</a>
+      <a href="#cat-14">_14-16 UPB Events</a>
+      <a href="#cat-17">_17 Gas Meter</a>
+      <a href="#cat-18">_18 & _27 ZigBee</a>
+      <a href="#cat-19">_19 Elk Security Panel</a>
+      <a href="#cat-20">_20 Linker</a>
+      <a href="#cat-21">_21 Legacy Z-Wave</a>
+      <a href="#cat-22">_22 Billing Events</a>
+      <a href="#cat-23">_23 Portal Events</a>
+      <a href="#cat-24">_24 System Editors</a>
+      <a href="#cat-25">_25 ZMatter Z-Wave</a>
+      <a href="#cat-26">_26 System Upgrade</a>
+      <a href="#cat-28">_28 Matter & Profiles</a>
+
+      <div class="nav-category">Integration</div>
+      <a href="#client-handling">Client-Side Handling</a>
+      <a href="#node-def-change">Key Event: _3/NI</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+    </nav>
+  </aside>
+
+  <!-- Main Scrollable Documentation -->
+  <main>
+    <div class="container" id="contentContainer">
+      
+      <div class="doc-hero">
+        <h2>IoX / ISY Subscription Events</h2>
+        <p>Interactive specification for UPnP & WebSocket event streams in Universal Devices IoX / eISY.</p>
+        <div class="doc-badges">
+          <span class="badge">UPnP / WebSocket</span>
+          <span class="badge purple">PG3x / NuCore</span>
+          <span class="badge">Version: 2026.1</span>
+        </div>
+      </div>
+
+      <!-- Section: Overview -->
+      <section id="overview" class="searchable-section">
+        <h3>Overview</h3>
+        <p>The ISY controller uses a UPnP-based subscription event system to notify connected clients (Admin Console, WebSocket subscribers, node servers) of state changes. Events are categorized by <strong>control</strong> (event category) and <strong>action</strong> (specific event within that category).</p>
+        <p>Events are fired from the firmware via <code>UpdateLogicalDevice()</code> and delivered to subscribers as XML with the structure:</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;event control="{control}" action="{action}" node="{nodeAddress}"&gt;
+  &lt;eventInfo&gt;...&lt;/eventInfo&gt;
+&lt;/event&gt;</code></pre>
+        <p>The subscription path format is: <code>events/controls/{control}/{action}</code></p>
+      </section>
+
+      <!-- Section: Source Files -->
+      <section id="source-files" class="searchable-section">
+        <h3>Source Files</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>File</th><th>Role</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>ISY/src/system/UDEvents.h</code></td><td>All event category and action constants (firmware)</td></tr>
+              <tr><td><code>ISYFinder/.../device/model/IModelChangeListener.java</code></td><td>Client-side event constants and callbacks</td></tr>
+              <tr><td><code>ISYFinder/.../upnp/UDControlPoint.java</code></td><td>Client-side event dispatch (<code>deviceStateChanged()</code>)</td></tr>
+              <tr><td><code>ISY/src/u7/U7Report.cpp</code></td><td>Fires node-related events (<code>_3</code>)</td></tr>
+              <tr><td><code>ISY/src/u7/U7SystemEditors.cpp</code></td><td>Fires system editor event (<code>_24</code>)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: Driver Controls -->
+      <section id="driver-controls" class="searchable-section">
+        <h3>Node Status/Control Events (Driver Controls)</h3>
+        <p>The most common events. Fired when a device's status changes (on/off, level, temperature, etc.). These use the <strong>driver control name</strong> as the control field — NOT a <code>_X</code> category.</p>
+        <pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>&lt;event control="{driverControlName}" action="{value}" node="{nodeAddress}"&gt;
+  &lt;eventInfo uom="{uom}" prec="{precision}" /&gt;
+&lt;/event&gt;</code></pre>
+        
+        <h4>Common Driver Control Names</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr><th>Control</th><th>Meaning</th><th>Value Range / Examples</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>ST</code></td><td>Status</td><td>On/off level, 0–255</td></tr>
+              <tr><td><code>OL</code></td><td>On Level</td><td>Default intensity when turned on</td></tr>
+              <tr><td><code>RR</code></td><td>Ramp Rate</td><td>Fade duration/rate</td></tr>
+              <tr><td><code>CLISPH</code></td><td>Thermostat Heat Setpoint</td><td>Target heating temperature</td></tr>
+              <tr><td><code>CLISPC</code></td><td>Thermostat Cool Setpoint</td><td>Target cooling temperature</td></tr>
+              <tr><td><code>CLIMD</code></td><td>Thermostat Mode</td><td>Off, Heat, Cool, Auto</td></tr>
+              <tr><td><code>CLIFS</code></td><td>Thermostat Fan State</td><td>On, Auto</td></tr>
+              <tr><td><code>BATLVL</code></td><td>Battery Level</td><td>0–100%</td></tr>
+              <tr><td><code>ERR</code></td><td>Error Status</td><td>Node communication or hardware error</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: _0 -->
+      <section id="cat-0" class="searchable-section">
+        <h3><code>_0</code> — Heartbeat</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>(none)</td><td class="cell-constant">DEVINTIX_CLIENT_HEART_BEAT</td><td>Periodic keepalive sent to subscribers</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: _1 -->
+      <section id="cat-1" class="searchable-section">
+        <h3><code>_1</code> — Trigger / Program Events</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>0</code></td><td class="cell-constant">UD_TRIGGER_EVENT_STATUS</td><td>Program status changed</td></tr>
+              <tr><td><code>1</code></td><td class="cell-constant">UD_TRIGGER_EVENT_GET_STATUS</td><td>Get program status</td></tr>
+              <tr><td><code>2</code></td><td class="cell-constant">UD_TRIGGER_EVENT_KEY_CHANGED</td><td>Program key changed</td></tr>
+              <tr><td><code>3</code></td><td class="cell-constant">UD_TRIGGER_EVENT_INFO_STRING</td><td>Info string</td></tr>
+              <tr><td><code>4</code></td><td class="cell-constant">UD_TRIGGER_EVENT_LEARN_IR</td><td>Learn IR</td></tr>
+              <tr><td><code>5</code></td><td class="cell-constant">UD_TRIGGER_EVENT_SCHEDULE</td><td>Schedule changed</td></tr>
+              <tr><td><code>6</code></td><td class="cell-constant">UD_TRIGGER_EVENT_VAR_STATUS</td><td>Variable status changed</td></tr>
+              <tr><td><code>7</code></td><td class="cell-constant">UD_TRIGGER_EVENT_VAR_INIT</td><td>Variable initialized</td></tr>
+              <tr><td><code>8</code></td><td class="cell-constant">UD_TRIGGER_EVENT_CURRENT_KEY</td><td>Current key</td></tr>
+              <tr><td><code>9</code></td><td class="cell-constant">UD_TRIGGER_EVENT_VAR_UPDATED</td><td>Variable updated</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: _2 -->
+      <section id="cat-2" class="searchable-section">
+        <h3><code>_2</code> — Device Specific Events</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td>(varies)</td><td class="cell-constant">UD_DEVICE_SPECIFIC_EVENT</td><td>Protocol-specific events (Insteon, etc.)</td></tr>
+              <tr><td><code>UD2</code></td><td class="cell-constant">UD_UD2_EVENT</td><td>UD2 event (special case)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: _3 -->
+      <section id="cat-3" class="searchable-section">
+        <h3><code>_3</code> — Nodes Updated Events</h3>
+        <p>The most commonly used event category. Fired by <code>U7Report</code> and device drivers.</p>
+        
+        <h4>Node Actions</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th><th>Fired By</th></tr></thead>
+            <tbody>
+              <tr><td><code>NN</code></td><td class="cell-constant">DEVINTIX_NODE_RENAMED_ACTION</td><td>Node renamed</td><td>Node manager</td></tr>
+              <tr><td><code>NR</code></td><td class="cell-constant">DEVINTIX_NODE_REMOVED_ACTION</td><td>Node removed</td><td>Node manager</td></tr>
+              <tr><td><code>ND</code></td><td class="cell-constant">DEVINTIX_NODE_ADDED_ACTION</td><td>Node added</td><td>Node manager</td></tr>
+              <tr><td><code>RV</code></td><td class="cell-constant">DEVINTIX_NODE_REVISED_ACTION</td><td>Node revised (flags changed)</td><td><code>U7Report::reportNodeRevised()</code></td></tr>
+              <tr><td><code>NI</code></td><td class="cell-constant">DEVINTIX_NODE_SUPPORTED_TYPE_INFO_CHANGED_ACTION</td><td>Node's nodedef changed</td><td><code>U7Report::reportNodeDefChanged()</code></td></tr>
+              <tr><td><code>NE</code></td><td class="cell-constant">DEVINTIX_NODE_IN_ERROR_ACTION</td><td>Node in error (comm failure)</td><td>Node manager</td></tr>
+              <tr><td><code>CE</code></td><td class="cell-constant">DEVINTIX_NODE_CLEAR_ERROR_ACTION</td><td>Node error cleared</td><td>Node manager</td></tr>
+              <tr><td><code>EN</code></td><td class="cell-constant">DEVINTIX_NODE_ENABLED_ACTION</td><td>Node enabled/disabled</td><td>Node manager</td></tr>
+              <tr><td><code>PC</code></td><td class="cell-constant">DEVINTIX_NODE_PARENT_CHANGED_ACTION</td><td>Node parent changed</td><td>Node manager</td></tr>
+              <tr><td><code>NX</code></td><td class="cell-constant">DEVINTIX_NODE_NOTES_CHANGED_ACTION</td><td>Node notes changed</td><td>Node manager</td></tr>
+              <tr><td><code>PI</code></td><td class="cell-constant">DEVINTIX_NODE_POWER_INFO_CHANGED_ACTION</td><td>Power info changed</td><td>Node manager</td></tr>
+              <tr><td><code>DI</code></td><td class="cell-constant">DEVINTIX_NODE_DEVICE_ID_CHANGED</td><td>Device ID changed</td><td>Node manager</td></tr>
+              <tr><td><code>AA</code></td><td class="cell-constant">DEVINTIX_NODE_ALL_NODES_ADDED</td><td>All nodes for a device added (bulk)</td><td><code>U7Report::reportAllNodesAdded()</code></td></tr>
+              <tr><td><code>MV</code></td><td class="cell-constant">DEVINTIX_NODE_MOVED_ACTION</td><td>Node moved to group</td><td>Node manager</td></tr>
+              <tr><td><code>CL</code></td><td class="cell-constant">DEVINTIX_NODE_CHANGE_LINK_ACTION</td><td>Node link role changed</td><td>Node manager</td></tr>
+              <tr><td><code>RG</code></td><td class="cell-constant">DEVINTIX_NODE_REMOVED_FROM_GROUP_ACTION</td><td>Node removed from group</td><td>Node manager</td></tr>
+              <tr><td><code>WH</code></td><td class="cell-constant">DEVINTIX_HAS_PENDING_DEVICE_WRITES</td><td>Node has pending device writes</td><td>Node manager</td></tr>
+              <tr><td><code>WD</code></td><td class="cell-constant">DEVINTIX_WRITING_TO_DEVICE</td><td>Writing to device</td><td>Node manager</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>Property, Group & Discovery Actions</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>DP</code></td><td class="cell-constant">DEVINTIX_NODE_DEVICE_PROPERTY_CHANGED</td><td>Device property changed</td></tr>
+              <tr><td><code>LU</code></td><td class="cell-constant">DEVINTIX_NODE_LINK_UPDATED_ACTION</td><td>Scene link updated</td></tr>
+              <tr><td><code>GN</code></td><td class="cell-constant">DEVINTIX_GROUP_RENAMED_ACTION</td><td>Group renamed</td></tr>
+              <tr><td><code>GR</code></td><td class="cell-constant">DEVINTIX_GROUP_REMOVED_ACTION</td><td>Group removed</td></tr>
+              <tr><td><code>GD</code></td><td class="cell-constant">DEVINTIX_GROUP_ADDED_ACTION</td><td>Group added</td></tr>
+              <tr><td><code>FN</code></td><td class="cell-constant">DEVINTIX_FOLDER_RENAMED_ACTION</td><td>Folder renamed</td></tr>
+              <tr><td><code>FR</code></td><td class="cell-constant">DEVINTIX_FOLDER_REMOVED_ACTION</td><td>Folder removed</td></tr>
+              <tr><td><code>FD</code></td><td class="cell-constant">DEVINTIX_FOLDER_ADDED_ACTION</td><td>Folder added</td></tr>
+              <tr><td><code>SN</code></td><td class="cell-constant">DEVINTIX_DISCOVERING_NODES_ACTION</td><td>Node discovery started</td></tr>
+              <tr><td><code>SC</code></td><td class="cell-constant">DEVINTIX_DISCOVERING_NODES_COMPLETE_ACTION</td><td>Node discovery complete</td></tr>
+              <tr><td><code>WR</code></td><td class="cell-constant">DEVINTIX_NETWORK_RENAMED_ACTION</td><td>Network renamed</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: _4 & _5 & _6 -->
+      <section id="cat-4" class="searchable-section">
+        <h3><code>_4</code> — System Configuration Events</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>0</code></td><td class="cell-constant">UD_TIME_CHANGED_ACTION</td><td>Time changed</td></tr>
+              <tr><td><code>1</code></td><td class="cell-constant">UD_TIME_CONFIG_CHANGED_ACTION</td><td>Time config changed</td></tr>
+              <tr><td><code>2</code></td><td class="cell-constant">UD_NTP_SETTINGS_UPDATED_ACTION</td><td>NTP settings updated</td></tr>
+              <tr><td><code>3</code></td><td class="cell-constant">UD_NOTIFICATION_SETTINGS_UPDATED_ACTION</td><td>Notification settings updated</td></tr>
+              <tr><td><code>4</code></td><td class="cell-constant">UD_NTP_COMM_FAILED_ACTION</td><td>NTP communication failed</td></tr>
+              <tr><td><code>5</code></td><td class="cell-constant">UD_BATCH_MODE_CHANGED</td><td>Batch mode changed</td></tr>
+              <tr><td><code>6</code></td><td class="cell-constant">UD_BATTERY_DEVICE_WRITE_MODE_CHANGED</td><td>Battery device write mode changed</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="cat-5" class="searchable-section">
+        <h3><code>_5</code> — System Busy Events</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>0</code></td><td class="cell-constant">DEVINTIX_SYSTEM_IS_NOT_BUSY_ACTION</td><td>System not busy</td></tr>
+              <tr><td><code>1</code></td><td class="cell-constant">DEVINTIX_SYSTEM_IS_BUSY_ACTION</td><td>System is busy</td></tr>
+              <tr><td><code>2</code></td><td class="cell-constant">DEVINTIX_SYSTEM_IS_IDLE_ACTION</td><td>System is idle</td></tr>
+              <tr><td><code>3</code></td><td class="cell-constant">DEVINTIX_SYSTEM_IN_SAFE_MODE_ACTION</td><td>System in safe mode</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="cat-6" class="searchable-section">
+        <h3><code>_6</code> — Internet Access Events</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>0</code></td><td class="cell-constant">DEVINTIX_INTERNET_ACCESS_DISABLED_ACTION</td><td>Internet access disabled</td></tr>
+              <tr><td><code>1</code></td><td class="cell-constant">DEVINTIX_INTERNET_ACCESS_ENABLED_ACTION</td><td>Internet access enabled (URL in eventInfo)</td></tr>
+              <tr><td><code>2</code></td><td class="cell-constant">DEVINTIX_INTERNET_ACCESS_FAILED_ACTION</td><td>Internet access failed</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: _24 -->
+      <section id="cat-24" class="searchable-section">
+        <h3><code>_24</code> — System Editor Events</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th><th>Fired By</th></tr></thead>
+            <tbody>
+              <tr><td><code>1</code></td><td class="cell-constant">UD_SYSTEM_EDITOR_CHANGED</td><td>System editor <code>_sys_notify_short</code> changed</td><td><code>ISY/src/u7/U7SystemEditors.cpp</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="alert-box alert-info">
+          <div>💡 Fired when notification system editors are updated. The node field contains the editor name (e.g. <code>_sys_notify_short</code>). Triggered by <code>/rest/report/notifications/updated</code>.</div>
+        </div>
+      </section>
+
+      <!-- Section: _28 -->
+      <section id="cat-28" class="searchable-section">
+        <h3><code>_28</code> — Matter Events / Profiles Events (SHARED)</h3>
+        <p>This category is shared between Matter (UYM) system events and Profile change events.</p>
+        
+        <h4>Matter Events (ACTIVE)</h4>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Action</th><th>Constant</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>1</code></td><td class="cell-constant">UD_UYM_SYSTEM_STATUS</td><td>Matter system status (enabled/connected/dongle updated)</td></tr>
+              <tr><td><code>2</code></td><td class="cell-constant">UD_UYM_DISCOVERY_STATUS</td><td>Matter discovery status</td></tr>
+              <tr><td><code>3</code></td><td class="cell-constant">UD_UYM_RX_TX</td><td>RX data available</td></tr>
+              <tr><td><code>8</code></td><td class="cell-constant">UD_UYM_DEVICE_INTERVIEW</td><td>Device interview status</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="alert-box alert-warning">
+          <div>⚠️ <strong>Firmware Warning:</strong> Profile events (actions 1–8: <code>UD_PROFILES_PROFILE_UPDATED</code>, <code>UD_PROFILES_NODEDEF_UPDATED</code>, etc.) are defined in <code>UDEvents.h</code> as placeholders, but NO firmware code ever fires them. Do not rely on them for runtime notifications.</div>
+        </div>
+      </section>
+
+      <!-- Section: Integration & Troubleshooting -->
+      <section id="node-def-change" class="searchable-section">
+        <h3>Key Event: <code>_3/NI</code> — NodeDef Changed</h3>
+        <p>This is the primary event for profile-related changes.</p>
+        <ul>
+          <li><strong>Fired when:</strong> A node's nodedef assignment changes (via <code>changeNode()</code> in node server, or device driver detecting capability changes).</li>
+          <li><strong>NOT fired when:</strong> Profile database is updated via <code>/rest/profiles/.../update</code>, <code>/rest/profiles/.../move</code>, or at startup migration.</li>
+          <li><strong>Client callback:</strong> <code>IModelChangeListener.onNodeSupportedTypeInfoChanged(device, nodeAddress)</code></li>
+        </ul>
+      </section>
+
+      <section id="troubleshooting" class="searchable-section">
+        <h3>Troubleshooting</h3>
+        <div class="card">
+          <h4>Events Not Being Received?</h4>
+          <ol style="margin-left: 1.5rem; color: #cbd5e1;">
+            <li><strong>Check subscription is active:</strong> Subscriptions expire and must be renewed periodically.</li>
+            <li><strong>Check if event is actually fired:</strong> Many events in <code>UDEvents.h</code> are never fired (e.g., <code>_28</code> profile events).</li>
+            <li><strong>Verify path format:</strong> The path pattern is <code>controls/{control}/{action}</code>, e.g., <code>controls/_3/NI</code>.</li>
+          </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    // Live Search & Filter
+    const filterInput = document.getElementById('filterInput');
+    const sections = document.querySelectorAll('.searchable-section');
+    const navLinks = document.querySelectorAll('#sidebarNav a');
+
+    filterInput.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      
+      sections.forEach(sec => {
+        const text = sec.textContent.toLowerCase();
+        if (!q || text.includes(q)) {
+          sec.classList.remove('filter-hidden');
+          // Filter table rows if applicable
+          const rows = sec.querySelectorAll('tbody tr');
+          if (rows.length > 0) {
+            rows.forEach(tr => {
+              const rowText = tr.textContent.toLowerCase();
+              tr.style.display = (!q || rowText.includes(q)) ? '' : 'none';
+            });
+          }
+        } else {
+          sec.classList.add('filter-hidden');
+        }
+      });
+
+      navLinks.forEach(link => {
+        const targetId = link.getAttribute('href').substring(1);
+        const targetSec = document.getElementById(targetId);
+        if (targetSec && targetSec.classList.contains('filter-hidden')) {
+          link.style.display = 'none';
+        } else {
+          link.style.display = 'block';
+        }
+      });
+    });
+
+    // Copy to clipboard helper
+    function copyCode(btn) {
+      const code = btn.nextElementSibling.innerText;
+      navigator.clipboard.writeText(code).then(() => {
+        const originalText = btn.innerText;
+        btn.innerText = 'Copied!';
+        setTimeout(() => { btn.innerText = originalText; }, 1500);
+      });
+    }
+
+    // Click constant to copy
+    document.querySelectorAll('.cell-constant').forEach(el => {
+      el.title = "Click to copy constant name";
+      el.addEventListener('click', () => {
+        navigator.clipboard.writeText(el.innerText).then(() => {
+          const original = el.innerText;
+          el.innerText = '✓ Copied!';
+          setTimeout(() => { el.innerText = original; }, 1200);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
+

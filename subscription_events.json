@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IoXSubscriptionEventsCatalog",
+  "version": "1.0.0",
+  "description": "Machine-readable catalog of Universal Devices IoX / ISY subscription event categories, controls, actions, and driver mappings.",
+  "driver_controls": {
+    "ST": { "meaning": "Status (level)", "range": "0-255" },
+    "OL": { "meaning": "On Level", "range": "0-255" },
+    "RR": { "meaning": "Ramp Rate", "range": "0-31" },
+    "CLISPH": { "meaning": "Thermostat Heat Setpoint", "uom": "temperature" },
+    "CLISPC": { "meaning": "Thermostat Cool Setpoint", "uom": "temperature" },
+    "CLIMD": { "meaning": "Thermostat Mode", "values": ["Off", "Heat", "Cool", "Auto"] },
+    "CLIFS": { "meaning": "Thermostat Fan State", "values": ["Auto", "On"] },
+    "BATLVL": { "meaning": "Battery Level", "range": "0-100%" },
+    "ERR": { "meaning": "Error Status", "range": "Numeric error code" }
+  },
+  "system_categories": {
+    "_0": {
+      "name": "Heartbeat",
+      "actions": {
+        "": { "constant": "DEVINTIX_CLIENT_HEART_BEAT", "description": "Periodic keepalive sent to subscribers" }
+      }
+    },
+    "_1": {
+      "name": "Trigger / Program Events",
+      "actions": {
+        "0": { "constant": "UD_TRIGGER_EVENT_STATUS", "description": "Program status changed" },
+        "1": { "constant": "UD_TRIGGER_EVENT_GET_STATUS", "description": "Get program status" },
+        "2": { "constant": "UD_TRIGGER_EVENT_KEY_CHANGED", "description": "Program key changed" },
+        "3": { "constant": "UD_TRIGGER_EVENT_INFO_STRING", "description": "Info string" },
+        "4": { "constant": "UD_TRIGGER_EVENT_LEARN_IR", "description": "Learn IR" },
+        "5": { "constant": "UD_TRIGGER_EVENT_SCHEDULE", "description": "Schedule changed" },
+        "6": { "constant": "UD_TRIGGER_EVENT_VAR_STATUS", "description": "Variable status changed" },
+        "7": { "constant": "UD_TRIGGER_EVENT_VAR_INIT", "description": "Variable initialized" },
+        "8": { "constant": "UD_TRIGGER_EVENT_CURRENT_KEY", "description": "Current key" },
+        "9": { "constant": "UD_TRIGGER_EVENT_VAR_UPDATED", "description": "Variable updated" }
+      }
+    },
+    "_3": {
+      "name": "Nodes Updated Events",
+      "actions": {
+        "NN": { "constant": "DEVINTIX_NODE_RENAMED_ACTION", "description": "Node renamed", "fired_by": "Node manager" },
+        "NR": { "constant": "DEVINTIX_NODE_REMOVED_ACTION", "description": "Node removed", "fired_by": "Node manager" },
+        "ND": { "constant": "DEVINTIX_NODE_ADDED_ACTION", "description": "Node added", "fired_by": "Node manager" },
+        "RV": { "constant": "DEVINTIX_NODE_REVISED_ACTION", "description": "Node revised (flags changed)", "fired_by": "U7Report::reportNodeRevised()" },
+        "NI": { "constant": "DEVINTIX_NODE_SUPPORTED_TYPE_INFO_CHANGED_ACTION", "description": "Node nodedef changed", "fired_by": "U7Report::reportNodeDefChanged()" },
+        "NE": { "constant": "DEVINTIX_NODE_IN_ERROR_ACTION", "description": "Node in error (comm failure)", "fired_by": "Node manager" },
+        "CE": { "constant": "DEVINTIX_NODE_CLEAR_ERROR_ACTION", "description": "Node error cleared", "fired_by": "Node manager" },
+        "EN": { "constant": "DEVINTIX_NODE_ENABLED_ACTION", "description": "Node enabled/disabled", "fired_by": "Node manager" },
+        "DP": { "constant": "DEVINTIX_NODE_DEVICE_PROPERTY_CHANGED", "description": "Device property changed" },
+        "LU": { "constant": "DEVINTIX_NODE_LINK_UPDATED_ACTION", "description": "Scene link updated" }
+      }
+    },
+    "_4": {
+      "name": "System Configuration Events",
+      "actions": {
+        "0": { "constant": "UD_TIME_CHANGED_ACTION", "description": "Time changed" },
+        "1": { "constant": "UD_TIME_CONFIG_CHANGED_ACTION", "description": "Time config changed" },
+        "2": { "constant": "UD_NTP_SETTINGS_UPDATED_ACTION", "description": "NTP settings updated" },
+        "3": { "constant": "UD_NOTIFICATION_SETTINGS_UPDATED_ACTION", "description": "Notification settings updated" },
+        "4": { "constant": "UD_NTP_COMM_FAILED_ACTION", "description": "NTP communication failed" },
+        "5": { "constant": "UD_BATCH_MODE_CHANGED", "description": "Batch mode changed" },
+        "6": { "constant": "UD_BATTERY_DEVICE_WRITE_MODE_CHANGED", "description": "Battery device write mode changed" }
+      }
+    },
+    "_5": {
+      "name": "System Busy Events",
+      "actions": {
+        "0": { "constant": "DEVINTIX_SYSTEM_IS_NOT_BUSY_ACTION", "description": "System not busy" },
+        "1": { "constant": "DEVINTIX_SYSTEM_IS_BUSY_ACTION", "description": "System is busy" },
+        "2": { "constant": "DEVINTIX_SYSTEM_IS_IDLE_ACTION", "description": "System is idle" },
+        "3": { "constant": "DEVINTIX_SYSTEM_IN_SAFE_MODE_ACTION", "description": "System in safe mode" }
+      }
+    },
+    "_24": {
+      "name": "System Editor Events",
+      "actions": {
+        "1": { "constant": "UD_SYSTEM_EDITOR_CHANGED", "description": "System editor changed (e.g. _sys_notify_short)", "fired_by": "U7SystemEditors.cpp" }
+      }
+    },
+    "_28": {
+      "name": "Matter Events / Profiles Events (Shared)",
+      "matter_actions": {
+        "1": { "constant": "UD_UYM_SYSTEM_STATUS", "description": "Matter system status" },
+        "2": { "constant": "UD_UYM_DISCOVERY_STATUS", "description": "Matter discovery status" },
+        "3": { "constant": "UD_UYM_RX_TX", "description": "RX data available" },
+        "8": { "constant": "UD_UYM_DEVICE_INTERVIEW", "description": "Device interview status" }
+      },
+      "profiles_actions_inactive_warning": {
+        "1": "UD_PROFILES_PROFILE_UPDATED (Never fired by firmware)",
+        "5": "UD_PROFILES_NODEDEF_UPDATED (Never fired by firmware)"
+      }
+    }
+  }
+}
+
