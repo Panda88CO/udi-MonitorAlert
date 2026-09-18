@@ -50,6 +50,24 @@ except ImportError:
 
     LOGGER = logging.getLogger("udiMonitor")
 
+LOG_LEVEL_EVENT = 25
+logging.addLevelName(LOG_LEVEL_EVENT, "EVENT")
+
+if not hasattr(logging.Logger, "event"):
+    def _logger_event(self, message, *args, **kws):
+        if self.isEnabledFor(LOG_LEVEL_EVENT):
+            self._log(LOG_LEVEL_EVENT, message, args, **kws)
+    logging.Logger.event = _logger_event
+
+def log_alert_event(msg: str, *args: Any) -> None:
+    """Log an anomaly alert at EVENT level."""
+    if hasattr(LOGGER, "event"):
+        LOGGER.event(msg, *args)
+    elif hasattr(LOGGER, "log"):
+        LOGGER.log(LOG_LEVEL_EVENT, msg, *args)
+    else:
+        LOGGER.info(msg, *args)
+
 import database
 import ml_engine
 import notification_engine
@@ -95,7 +113,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.5")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.6")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -896,9 +914,8 @@ class Controller(Node):
                 self.active_tasks = database.load_active_monitor_tasks()
                 triggered = ml_engine.evaluate_periodic_tasks(tasks=self.active_tasks)
                 for anom in triggered:
-                    LOGGER.warning(
-                        "PERIODIC ALERT [%s]: %s (node=%s control=%s score=%s details=%s)",
-                        anom.get("severity", "warning").upper(),
+                    log_alert_event(
+                        "PERIODIC ALERT [EVENT]: %s (node=%s control=%s score=%s details=%s)",
                         anom.get("task_name"),
                         anom.get("node_id"),
                         anom.get("control"),
@@ -916,9 +933,8 @@ class Controller(Node):
                         test_interval_minutes=self.test_interval_minutes,
                     )
                     for anom in state_anoms:
-                        LOGGER.warning(
-                            "STATE CADENCE ALERT [%s]: %s (node=%s control=%s score=%s details=%s)",
-                            anom.get("severity", "warning").upper(),
+                        log_alert_event(
+                            "STATE CADENCE ALERT [EVENT]: %s (node=%s control=%s score=%s details=%s)",
                             anom.get("task_name"),
                             anom.get("node_id"),
                             anom.get("control"),
@@ -1950,9 +1966,8 @@ class Controller(Node):
                 system_state=self.current_system_state,
             )
             for anom in triggered:
-                LOGGER.warning(
-                    "ALERT [%s]: %s (node=%s control=%s value=%s score=%s details=%s)",
-                    anom.get("severity", "warning").upper(),
+                log_alert_event(
+                    "ALERT [EVENT]: %s (node=%s control=%s value=%s score=%s details=%s)",
                     anom.get("task_name"),
                     anom.get("node_id"),
                     anom.get("control"),

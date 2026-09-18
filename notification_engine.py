@@ -2,12 +2,15 @@ import base64
 import logging
 import smtplib
 import ssl
+import time
 import urllib.error
 import urllib.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timezone
 from typing import Any
+
+_LAST_SMTP_AUTH_WARN_TIME = 0.0
 
 try:
     from udi_interface import LOGGER
@@ -207,6 +210,20 @@ def send_email_notification(
 
         LOGGER.info("Email notification sent successfully to %s: %s", recipients, subject)
         return True
+    except smtplib.SMTPAuthenticationError as exc:
+        global _LAST_SMTP_AUTH_WARN_TIME
+        now = time.time()
+        if now - _LAST_SMTP_AUTH_WARN_TIME > 600:
+            _LAST_SMTP_AUTH_WARN_TIME = now
+            LOGGER.warning(
+                "Failed to send email notification to %s: Authentication unsuccessful (%s). "
+                "Note: For Microsoft 365 / Outlook or Gmail, an App Password is required instead of your regular account password.",
+                recipients,
+                exc,
+            )
+        else:
+            LOGGER.debug("Suppressed repeating SMTP authentication failure warning: %s", exc)
+        return False
     except Exception as exc:
         LOGGER.warning("Failed to send email notification to %s: %s", recipients, exc)
         return False

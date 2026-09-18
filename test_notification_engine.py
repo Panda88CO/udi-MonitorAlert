@@ -97,6 +97,28 @@ class TestNotificationEngine(unittest.TestCase):
         mock_server.login.assert_called_once_with("user@example.com", "secret_password")
         mock_server.sendmail.assert_called_once()
 
+    @patch("smtplib.SMTP")
+    def test_send_email_notification_auth_failure(self, mock_smtp):
+        import smtplib
+        mock_server = MagicMock()
+        mock_server.login.side_effect = smtplib.SMTPAuthenticationError(535, b"Authentication unsuccessful")
+        mock_smtp.return_value.__enter__.return_value = mock_server
+
+        config = {
+            "smtp_host": "smtp.office365.com",
+            "smtp_port": 587,
+            "smtp_user": "user@example.com",
+            "smtp_password": "wrong_password",
+            "notify_email_to": "alert@example.com",
+        }
+
+        success = notification_engine.send_email_notification(
+            config=config,
+            subject="Test Alert",
+            text_body="Test alert body",
+        )
+        self.assertFalse(success)
+
     @patch("urllib.request.urlopen")
     def test_send_udmobile_iox_notification(self, mock_urlopen):
         mock_resp = MagicMock()

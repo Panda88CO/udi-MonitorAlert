@@ -68,5 +68,25 @@ class TestUdiMonitorHelpers(unittest.TestCase):
         ctrl.query()
         ctrl.reportDrivers.assert_called_once()
 
+    def test_event_log_level_and_helper(self):
+        import logging
+        self.assertEqual(logging.getLevelName(udiMonitor.LOG_LEVEL_EVENT), "EVENT")
+        records = []
+        class TestHandler(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        handler = TestHandler()
+        logger = logging.getLogger("test_event_logger")
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+
+        with unittest.mock.patch("udiMonitor.LOGGER", logger):
+            udiMonitor.log_alert_event("Test Anomaly Alert")
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].levelname, "EVENT")
+        self.assertEqual(records[0].getMessage(), "Test Anomaly Alert")
+
 if __name__ == "__main__":
     unittest.main()
