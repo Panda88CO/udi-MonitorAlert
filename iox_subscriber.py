@@ -1,3 +1,4 @@
+from __future__ import annotations
 import threading
 import base64
 import ssl
