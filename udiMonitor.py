@@ -44,6 +44,18 @@ except ImportError:
             self.notices.pop(key, None)
         def setCustomNotices(self, notices):
             self.notices = dict(notices)
+        def updateProfile(self):
+            pass
+        def ready(self):
+            pass
+        def addNode(self, node, *args, **kwargs):
+            pass
+        def start(self, *args, **kwargs):
+            pass
+        def setCustomParamsDoc(self):
+            pass
+        def runForever(self):
+            pass
 
     class Custom:
         def __init__(self, *args, **kwargs):
@@ -114,7 +126,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.6")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.7")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -216,50 +228,76 @@ def log_event_to_file( node_id, control, value, name, action, event_time):
 # DYNAMIC PROFILE DEFINITIONS (JSON Equivalent in Python)
 # =========================================================================
 
-# 1. Custom Editor Definitions (Replaces editors.xml)
-# Instructs IoX how to display specific value scales in the UI
+# 1. Custom Editor Definitions (Consistent with profile/editor/editors.xml)
 MY_EDITORS = {
+    "connect": {
+        "type": "range",
+        "uom": 25,
+        "subset": "0,1,2",
+        "desc": "Node Server Status",
+        "values": {"0": "Disconnected", "1": "Connected", "2": "Failed"}
+    },
+    "alarm": {
+        "type": "range",
+        "uom": 25,
+        "subset": "0,1",
+        "desc": "Anomaly Alert",
+        "values": {"0": "Normal", "1": "Alert"}
+    },
+    "percent": {
+        "type": "range",
+        "uom": 51,
+        "min": 0,
+        "max": 100,
+        "desc": "Anomaly Confidence",
+    },
+    "anomaly_type": {
+        "type": "range",
+        "uom": 25,
+        "subset": "0,1,2,3,4,5",
+        "desc": "Anomaly Type",
+        "values": {
+            "0": "None",
+            "1": "Spike / Surge",
+            "2": "Stuck / Silent",
+            "3": "Slow Creep / Leak",
+            "4": "Hourly Deviation",
+            "5": "Pattern Shift"
+        }
+    },
+    "reading": {
+        "type": "range",
+        "uom": 56,
+        "desc": "Anomalous Value Reading",
+    },
+    "system_state": {
+        "type": "range",
+        "uom": 25,
+        "subset": "0,1,2",
+        "desc": "System State",
+        "values": {"0": "Away", "1": "Home", "2": "Other"}
+    },
     "I_SYSTEM_STATUS": {
         "type": "range",
         "min": 0,
         "max": 1,
         "desc": "System Status",
-        "values": {
-            "0": "Offline",
-            "1": "Online"
-        }
-    }
+        "values": {"0": "Offline", "1": "Online"}
+    },
 }
 
-# Runtime config notes (PG3x customData):
-# {
-#   "eventSource": "iox",  # set to "nucore" only when NuCore provider is installed/configured
-#   "nucore": {
-#     "provider_path": "iox.IoXWrapper",  # or "package.module:FactoryOrClass"
-#     "provider_init": {
-#       "base_url": "https://eisy-ip",
-#       "username": "admin",
-#       "password": "your-password",
-#       "json_output": true,
-#       "prompt_format_type": "shared-features"
-#     },
-#     "subscribe_method": "register_callback",  # optional override for non-NuCore providers
-#     "start_method": "start"  # optional override
-#   }
-# }
-
-# 2. Dynamic Node Definitions (Replaces nodedefs.xml)
+# 2. Node Definitions (Consistent with profile/nodedef/nodedefs.xml)
 NODE_DEFINITIONS = {
     "ML_CTRL": {
         "nodedef_id": "ML_CTRL",
         "node_type": 1,
         "drivers": [
-            {"driver": "ST", "editor": "I_SYSTEM_STATUS", "uom": 2},
-            {"driver": "ALARM", "editor": "I_SYSTEM_STATUS", "uom": 2},
-            {"driver": "GV0", "editor": "I_PERCENT", "uom": 51},
-            {"driver": "GV1", "editor": "I_INDEX", "uom": 56},
-            {"driver": "GV2", "editor": "I_INDEX", "uom": 56},
-            {"driver": "GV3", "editor": "I_INDEX", "uom": 25}
+            {"driver": "ST", "editor": "connect", "uom": 25},
+            {"driver": "ALARM", "editor": "alarm", "uom": 25},
+            {"driver": "GV0", "editor": "percent", "uom": 51},
+            {"driver": "GV1", "editor": "anomaly_type", "uom": 25},
+            {"driver": "GV2", "editor": "reading", "uom": 56},
+            {"driver": "GV3", "editor": "system_state", "uom": 25}
         ],
         "commands": [
             {"id": "QUERY"}
@@ -438,10 +476,10 @@ class Controller(Node):
     id = 'ML_CTRL'
     commands = {'QUERY': 'query'}
     drivers = [
-        {'driver': 'ST', 'value': 1, 'uom': 2},
-        {'driver': 'ALARM', 'value': 0, 'uom': 2},
+        {'driver': 'ST', 'value': 1, 'uom': 25},
+        {'driver': 'ALARM', 'value': 0, 'uom': 25},
         {'driver': 'GV0', 'value': 0, 'uom': 51},
-        {'driver': 'GV1', 'value': 0, 'uom': 56},
+        {'driver': 'GV1', 'value': 0, 'uom': 25},
         {'driver': 'GV2', 'value': 0, 'uom': 56},
         {'driver': 'GV3', 'value': 1, 'uom': 25},
     ]
@@ -488,10 +526,31 @@ class Controller(Node):
         self.state_mapping = {"0": "away", "1": "home", "255": "home"}
         self.test_interval_minutes = 15
         self.var_definitions = {}
+        self._controller_node_added = False
         # Explicitly bind lifecycle handlers so startup always runs under PG3x.
         self.poly.subscribe(self.poly.START, self.start, self.address)
         self.poly.subscribe(self.poly.STOP, self.stop)
         self.poly.subscribe(self.poly.CUSTOMPARAMS, self.handle_custom_params)
+
+        if hasattr(self.poly, "updateProfile") and callable(self.poly.updateProfile):
+            try:
+                self.poly.updateProfile()
+            except Exception as exc:
+                LOGGER.warning("updateProfile failed: %s", exc)
+
+        if hasattr(self.poly, "ready") and callable(self.poly.ready):
+            try:
+                self.poly.ready()
+            except Exception as exc:
+                LOGGER.warning("poly.ready failed: %s", exc)
+
+        if hasattr(self.poly, "addNode") and callable(self.poly.addNode):
+            try:
+                self.poly.addNode(self, conn_status='ST', rename=True)
+                self._controller_node_added = True
+            except Exception as exc:
+                LOGGER.warning("poly.addNode failed: %s", exc)
+
         LOGGER.debug(
             "Controller initialized: address=%s name=%s rest_attempts=%s rest_backoff=%.2fs",
             self.address,
@@ -2001,19 +2060,18 @@ if __name__ == "__main__":
         cleanup_startup_files()
 
         # Instantiate Polyglot Core
-        polyglot = Interface([])
+        polyglot = Interface([Controller])
 
         # Use dict-style startup options for PG3/PG3x compatibility.
         polyglot.start({"version": VERSION, "requestId": True})
         polyglot.setCustomParamsDoc()
 
-        # Build master controller
+        # Build master controller (Controller.__init__ updates profile, calls ready, and registers node)
         control = Controller(polyglot, 'ml_ctrl', 'ml_ctrl', 'ML Pattern Engine')
 
-        # Register controller so it appears as an IoX node.
-        polyglot.addNode(control, conn_status='ST', rename=True)
+        if not getattr(control, "_controller_node_added", False) and hasattr(polyglot, "addNode") and callable(polyglot.addNode):
+            polyglot.addNode(control, conn_status='ST', rename=True)
 
-        polyglot.ready()
         polyglot.runForever()
     except (KeyboardInterrupt, SystemExit):
         sys.exit(0)

@@ -1,9 +1,8 @@
 {
-  "version": "0.1.5",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "name": "ML Pattern Engine",
-  "developer": "YourName",
-  "description": "An intelligent pattern and outlier tracking Node Server using dynamic JSON profiles.",
+  "developer": "Panda88CO",
+  "description": "An intelligent pattern and outlier tracking Node Server for IoX.",
   "executable": "udiMonitor.py",
   "language": "python3",
   "install": "install.sh"

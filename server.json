@@ -1,0 +1,27 @@
+{
+  "credits": [
+    {
+      "title": "udi-MonitorAlert",
+      "author": "Panda88CO",
+      "version": "0.1.7",
+      "date": "2026-09-25",
+      "source": "https://github.com/Panda88CO/udi-MonitorAlert"
+    }
+  ],
+  "name": "udi-MonitorAlert",
+  "docs": "README.md",
+  "type": "python3",
+  "executable": "udiMonitor.py",
+  "install": "install.sh",
+  "shortPoll": 30,
+  "longPoll": 180,
+  "profile_version": "0.1.7",
+  "version": "0.1.7",
+  "customParams": {
+    "isy_ip": "192.168.1.240",
+    "isy_user": "admin",
+    "isy_password": ""
+  },
+  "restart": true,
+  "language": "python3"
+}

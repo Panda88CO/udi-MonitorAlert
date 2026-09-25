@@ -14,11 +14,15 @@ def format_time_ms(ts_ms):
         return str(ts_ms)
 
 
+import database
+
+
 def run_analysis_report():
     print("=" * 80)
     print(" " * 25 + "SQLITE DATA & OUTLIER REPORT")
     print("=" * 80)
 
+    database.init_db()
     conn = sqlite3.connect("history.db")
     c = conn.cursor()
 

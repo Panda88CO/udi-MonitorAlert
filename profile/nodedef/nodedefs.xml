@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<nodeDefs>
+   <nodeDef id="ML_CTRL" nls="nls_ml_ctrl">
+      <editors />
+      <sts>
+         <st id="ST" editor="connect" />
+         <st id="ALARM" editor="alarm" />
+         <st id="GV0" editor="percent" />
+         <st id="GV1" editor="anomaly_type" />
+         <st id="GV2" editor="reading" />
+         <st id="GV3" editor="system_state" />
+      </sts>
+      <cmds>
+         <sends>
+            <cmd id="DON" />
+            <cmd id="DOF" />
+         </sends>
+         <accepts>
+            <cmd id="QUERY" />
+         </accepts>
+      </cmds>
+   </nodeDef>
+</nodeDefs>

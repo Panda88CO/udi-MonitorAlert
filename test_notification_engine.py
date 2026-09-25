@@ -1,11 +1,27 @@
 from __future__ import annotations
 import os
 import unittest
+import tempfile
 from unittest.mock import patch, MagicMock
+import database
 import notification_engine
 import udiMonitor
 
 class TestNotificationEngine(unittest.TestCase):
+    def setUp(self):
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.temp_db.close()
+        self.orig_db_name = database.DB_NAME
+        database.DB_NAME = self.temp_db.name
+        database.init_db()
+
+    def tearDown(self):
+        database.DB_NAME = self.orig_db_name
+        if os.path.exists(self.temp_db.name):
+            try:
+                os.remove(self.temp_db.name)
+            except OSError:
+                pass
     def test_format_alert_message_spike(self):
         alert = {
             "task_id": "pool_temp_spike",

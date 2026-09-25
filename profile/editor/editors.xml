@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<editors>
+  <editor id="connect">
+    <range uom="25" subset="0,1,2" nls="connect" />
+  </editor>
+
+  <editor id="alarm">
+    <range uom="25" subset="0,1" nls="alarm" />
+  </editor>
+
+  <editor id="percent">
+    <range uom="51" min="0" max="100" step="1" />
+  </editor>
+
+  <editor id="anomaly_type">
+    <range uom="25" subset="0,1,2,3,4,5" nls="anomaly_type" />
+  </editor>
+
+  <editor id="reading">
+    <range uom="56" min="-999999" max="999999" step="0.1" prec="1" />
+  </editor>
+
+  <editor id="system_state">
+    <range uom="25" subset="0,1,2" nls="system_state" />
+  </editor>
+
+  <editor id="I_SYSTEM_STATUS">
+    <range uom="25" subset="0,1" nls="connect" />
+  </editor>
+
+  <editor id="I_PERCENT">
+    <range uom="51" min="0" max="100" step="1" />
+  </editor>
+
+  <editor id="I_INDEX">
+    <range uom="25" subset="0,1,2,3,4,5" nls="anomaly_type" />
+  </editor>
+</editors>

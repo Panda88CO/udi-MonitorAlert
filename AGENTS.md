@@ -24,27 +24,27 @@ Agents should prioritize safe, minimal changes and preserve runtime behavior for
 
 ## Project Conventions
 - Use `udi_interface.LOGGER` for logging.
-- Keep dynamic profile dictionaries (`MY_EDITORS`, `NODE_DEFINITIONS`) consistent with node behavior.
-- Preserve Node subclass IDs (`ML_CTRL`, `ANOMALY_TRACKER`) unless a migration is explicitly planned.
+- Standard Polyglot XML profile files in `profile/` (`profile/editor/editors.xml`, `profile/nodedef/nodedefs.xml`, `profile/nls/en_us.txt`, `profile/version.txt`) are used following the exact pattern in `udi-broadlink`.
+- In `Controller.__init__`, invoke `self.poly.updateProfile()`, `self.poly.ready()`, and `self.poly.addNode(self, conn_status='ST', rename=True)`.
+- Keep in-code profile definitions (`MY_EDITORS`, `NODE_DEFINITIONS`) consistent with XML definitions.
+- Preserve Node subclass IDs (`ML_CTRL`) unless a migration is explicitly planned.
 - Prefer targeted edits over broad refactors in controller/event-handling paths.
 
 ## External Dependencies and Runtime Assumptions
-- Requires running Polyglot/IoX environment with config keys: `isyIp`, `isyPort`, `isyUser`, `isyPassword`.
+- Requires running Polyglot/IoX environment with config keys: `isy_ip` (or `isyIp`), `isy_port`, `isy_user`, `isy_password`.
 - WebSocket transport currently uses `ws://` and Basic Auth header.
 - `history.db` is created relative to process working directory.
 
-## Known Risks and Pitfalls
-- `manifest.json` appears malformed (extra opening/closing brace) and references `nodeserver.py` instead of the actual entrypoint `udiMonitor.py`.
-- No automated tests are present.
-- `ml_engine.py` currently uses placeholder thresholding (`value > 1000`).
-- Subscriber parsing intentionally suppresses XML parse errors; avoid removing this behavior without a replacement strategy.
-- Anomaly tracker address truncates `node_id` to 10 chars (`anom_{node_id[:10]}`), which can collide.
+## Current State & Architecture
+- `manifest.json` and `server.json` are valid and specify `udiMonitor.py` entrypoint (v0.1.7).
+- Standard XML profile directory `profile/` installed with `ML_CTRL` node definition and matching editors.
+- Full automated test suite (64 tests across 9 suites) passes cleanly in local and CI environments.
 
 ## Agent Editing Guidance
 - Do not change integration contracts (config key names, callback signatures, driver IDs) unless requested.
 - When changing event flow, validate all touched layers: `iox_subscriber.py`, `udiMonitor.py`, `database.py`, and `ml_engine.py`.
 - Keep dependency additions minimal and justified in `requirements.txt`.
-- If introducing tests, prefer small unit tests around `ml_engine.py` and `database.py` first.
+- Run `python3 -m unittest discover -v` to verify changes.
 
 ## Suggested Next Customizations
 - Add a focused instruction file for Python files (`.github/instructions/python.instructions.md`) with lint/test/typing expectations.

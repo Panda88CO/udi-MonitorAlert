@@ -1,0 +1,29 @@
+ND-ML_CTRL-NAME=ML Pattern Engine
+ND-ML_CTRL-ICON=GenericCtl
+ST-nls_ml_ctrl-ST-NAME=Node Server Status
+ST-nls_ml_ctrl-ALARM-NAME=Anomaly Alert
+ST-nls_ml_ctrl-GV0-NAME=Anomaly Confidence
+ST-nls_ml_ctrl-GV1-NAME=Anomaly Type
+ST-nls_ml_ctrl-GV2-NAME=Anomalous Reading
+ST-nls_ml_ctrl-GV3-NAME=System State
+CMD-nls_ml_ctrl-DON-NAME=Heartbeat On
+CMD-nls_ml_ctrl-DOF-NAME=Heartbeat Off
+CMD-nls_ml_ctrl-QUERY-NAME=Query
+
+connect-0=Disconnected
+connect-1=Connected
+connect-2=Failed
+
+alarm-0=Normal
+alarm-1=Alert
+
+anomaly_type-0=None
+anomaly_type-1=Spike / Surge
+anomaly_type-2=Stuck / Silent
+anomaly_type-3=Slow Creep / Leak
+anomaly_type-4=Hourly Deviation
+anomaly_type-5=Pattern Shift
+
+system_state-0=Away
+system_state-1=Home
+system_state-2=Other
