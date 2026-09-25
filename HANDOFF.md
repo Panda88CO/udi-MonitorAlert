@@ -4,7 +4,7 @@
 Build a PG3x Python node server for Universal Devices eISY that monitors event changes from NuCore/IoX, logs callback events to JSONL and SQLite, and provides in-database statistical outlier and anomaly detection.
 
 ## Current State
-- Version: `0.1.7` (synchronized across `udiMonitor.py`, `manifest.json`, and `server.json`).
+- Version: `0.1.8` (synchronized across `udiMonitor.py`, `manifest.json`, `server.json`, and `profile/version.txt`).
 - Profile structure implemented following the exact `udi-broadlink` pattern with `profile/editor/editors.xml`, `profile/nodedef/nodedefs.xml`, `profile/nls/en_us.txt`, and `profile/version.txt`.
 - Controller initialization order: `poly.updateProfile()`, `poly.ready()`, and `poly.addNode(self, conn_status='ST', rename=True)`.
 - Full automated test suite (64 unit tests across 9 suites) passes cleanly in local and CI environments.

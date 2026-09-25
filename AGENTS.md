@@ -36,7 +36,7 @@ Agents should prioritize safe, minimal changes and preserve runtime behavior for
 - `history.db` is created relative to process working directory.
 
 ## Current State & Architecture
-- `manifest.json` and `server.json` are valid and specify `udiMonitor.py` entrypoint (v0.1.7).
+- `manifest.json` and `server.json` are valid and specify `udiMonitor.py` entrypoint (v0.1.8).
 - Standard XML profile directory `profile/` installed with `ML_CTRL` node definition and matching editors.
 - Full automated test suite (64 tests across 9 suites) passes cleanly in local and CI environments.
 
