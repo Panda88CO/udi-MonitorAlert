@@ -131,6 +131,79 @@ DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
 
+
+def sync_version_files(target_version: str | None = None) -> None:
+    """Ensure server.json, manifest.json, and profile/version.txt match the canonical VERSION.
+
+    Setting VERSION in udiMonitor.py is the single source of truth in the codebase.
+    This helper keeps external manifests and profile files in sync automatically.
+    """
+    ver = (target_version or VERSION or "").strip()
+    if not ver:
+        return
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 1. Synchronize profile/version.txt
+    profile_ver_path = os.path.join(base_dir, "profile", "version.txt")
+    try:
+        os.makedirs(os.path.dirname(profile_ver_path), exist_ok=True)
+        current = ""
+        if os.path.exists(profile_ver_path):
+            with open(profile_ver_path, "r", encoding="utf-8") as f:
+                current = f.read().strip()
+        if current != ver:
+            with open(profile_ver_path, "w", encoding="utf-8") as f:
+                f.write(ver + "\n")
+    except OSError as exc:
+        LOGGER.debug("sync_version_files: could not update profile/version.txt: %s", exc)
+
+    # 2. Synchronize server.json
+    server_json_path = os.path.join(base_dir, "server.json")
+    if os.path.exists(server_json_path):
+        try:
+            with open(server_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            changed = False
+            if data.get("version") != ver:
+                data["version"] = ver
+                changed = True
+            if data.get("profile_version") != ver:
+                data["profile_version"] = ver
+                changed = True
+            if "credits" in data and isinstance(data["credits"], list):
+                for credit in data["credits"]:
+                    if isinstance(credit, dict) and credit.get("version") != ver:
+                        credit["version"] = ver
+                        changed = True
+            if changed:
+                with open(server_json_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                    f.write("\n")
+        except (OSError, json.JSONDecodeError) as exc:
+            LOGGER.debug("sync_version_files: could not update server.json: %s", exc)
+
+    # 3. Synchronize manifest.json
+    manifest_json_path = os.path.join(base_dir, "manifest.json")
+    if os.path.exists(manifest_json_path):
+        try:
+            with open(manifest_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if data.get("version") != ver:
+                data["version"] = ver
+                with open(manifest_json_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                    f.write("\n")
+        except (OSError, json.JSONDecodeError) as exc:
+            LOGGER.debug("sync_version_files: could not update manifest.json: %s", exc)
+
+
+# Automatically sync external metadata files to canonical VERSION on load
+try:
+    sync_version_files(VERSION)
+except Exception:
+    pass
+
 def current_time_ms() -> int:
     return int(datetime.now(timezone.utc).timestamp() * 1000)
 
@@ -201,12 +274,13 @@ def _truncate_file(path):
 
 
 def cleanup_startup_files():
-    """Clear runtime log/event files so each startup begins with fresh data."""
+    """Clear runtime log/event files and ensure version metadata is in sync."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     debug_log_path = os.path.join(base_dir, "logs", "debug.log")
 
     _truncate_file(debug_log_path)
     _truncate_file(EVENT_LOG_PATH)
+    sync_version_files(VERSION)
 
 def log_event_to_file( node_id, control, value, name, action, event_time):
     """Append a single event-callback record as a JSON line to EVENT_LOG_PATH."""
@@ -2056,6 +2130,15 @@ class Controller(Node):
 # =========================================================================
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-v", "version"):
+        print(f"udi-MonitorAlert version: {VERSION}")
+        sync_version_files(VERSION)
+        sys.exit(0)
+    if len(sys.argv) > 1 and sys.argv[1] in ("--sync-version", "sync-version"):
+        sync_version_files(VERSION)
+        print(f"Synchronized version {VERSION} across server.json, manifest.json, and profile/version.txt")
+        sys.exit(0)
+
     try:
         cleanup_startup_files()
 
