@@ -391,6 +391,7 @@ RESERVED_CUSTOM_PARAM_KEYS = {
     "notify_channels", "notify_email_to",
     "smtp_host", "smtp_port", "smtp_user", "smtp_password", "smtp_from",
     "notify_udmobile_content_id", "notify_udmobile_recipient_id",
+    "auto_populate",
 }
 
 
@@ -548,7 +549,7 @@ def parse_monitor_options(
 
 class Controller(Node):
     id = 'ML_CTRL'
-    commands = {'QUERY': 'query'}
+    commands = {'QUERY': 'query', 'POPULATE': 'cmd_populate'}
     drivers = [
         {'driver': 'ST', 'value': 1, 'uom': 25},
         {'driver': 'ALARM', 'value': 0, 'uom': 25},
@@ -561,6 +562,10 @@ class Controller(Node):
     def query(self, command=None):
         if hasattr(self, 'reportDrivers'):
             self.reportDrivers()
+
+    def cmd_populate(self, command=None):
+        LOGGER.info("Admin Console triggered POPULATE command.")
+        self._auto_populate_custom_params()
 
     def __init__(self, polyglot, primary, address, name):
         super(Controller, self).__init__(polyglot, primary, address, name)
@@ -1172,9 +1177,78 @@ class Controller(Node):
             finally:
                 self._notification_queue.task_done()
 
+    def _auto_populate_custom_params(self, category_filter=None, force=False):
+        current_params = dict(self._get_custom_params() or {})
+        existing_monitors = set()
+        for k in current_params.keys():
+            node_id, control, _ = parse_node_control_key(k)
+            if node_id and control:
+                existing_monitors.add((node_id, control))
+
+        exclude = set() if force else existing_monitors
+        candidates = database.discover_candidate_monitors(
+            exclude_node_controls=exclude,
+            category_filter=category_filter,
+        )
+
+        if not candidates:
+            LOGGER.info("Auto-populate found 0 new candidates (filter=%s, force=%s)", category_filter, force)
+            current_params["auto_populate"] = "completed (0 new candidates found)"
+            try:
+                if hasattr(self.poly, "setCustomParams"):
+                    self.poly.setCustomParams(current_params)
+            except Exception as exc:
+                LOGGER.debug("setCustomParams call: %s", exc)
+            return current_params
+
+        for cand in candidates:
+            canonical_key = cand["canonical_key"]
+            preset = cand["preset"]
+            current_params[canonical_key] = preset
+
+        count = len(candidates)
+        current_params["auto_populate"] = f"completed ({count} candidates added)"
+        try:
+            if hasattr(self.poly, "setCustomParams"):
+                self.poly.setCustomParams(current_params)
+            if hasattr(self.poly, "addNotice"):
+                self.poly.addNotice(
+                    f"Auto-populated {count} candidate telemetry monitors into Configuration.",
+                    key="auto_populate_summary",
+                )
+        except Exception as exc:
+            LOGGER.debug("Auto-populate PG3x update call: %s", exc)
+
+        LOGGER.info("Auto-populated %d candidate monitors into customParams (filter=%s)", count, category_filter)
+        return current_params
+
+    def _check_cold_start_auto_populate(self):
+        params = self._get_custom_params()
+        if not isinstance(params, dict):
+            return
+        if "auto_populate" in params:
+            return
+        # If there are already monitors configured, don't run cold-start auto-populate
+        has_monitors = any(parse_node_control_key(k)[1] is not None for k in params.keys())
+        if has_monitors:
+            return
+
+        LOGGER.info("Cold-start detected with 0 configured monitors. Running initial candidate discovery.")
+        self._auto_populate_custom_params()
+
     def _sync_custom_params_monitors(self, params: dict):
         if not isinstance(params, dict):
             return
+
+        # Check if auto_populate parameter was provided
+        auto_pop_raw = str(params.get("auto_populate") or "").strip()
+        auto_pop_lower = auto_pop_raw.lower()
+        if auto_pop_lower and not auto_pop_lower.startswith("completed"):
+            cat_filter = None if auto_pop_lower in ("true", "1", "yes", "all") else auto_pop_raw
+            force_mode = (auto_pop_lower == "force")
+            populated = self._auto_populate_custom_params(category_filter=cat_filter, force=force_mode)
+            if populated:
+                params = populated
 
         updated_params = dict(params)
         need_param_rewrite = False
@@ -1231,11 +1305,15 @@ class Controller(Node):
                 task_types = [t["task_type"] for t in tasks]
                 monitored_summary.append(f"{canonical_key}: {', '.join(task_types)}")
 
+        # Prune tasks removed by user from customParams
+        active_task_ids = {t["task_id"] for t in new_tasks}
+        database.prune_removed_monitor_tasks(active_task_ids)
+
         # Upsert tasks to database
         if new_tasks:
             database.bulk_upsert_monitor_tasks(new_tasks)
-            self.active_tasks = database.load_active_monitor_tasks()
-            LOGGER.info("Synchronized %d monitor tasks from customParams: %s", len(new_tasks), [t["task_id"] for t in new_tasks])
+        self.active_tasks = database.load_active_monitor_tasks()
+        LOGGER.info("Synchronized %d monitor tasks from customParams: %s", len(new_tasks), list(active_task_ids))
 
         # If any keys or values were reformatted/suggested, update PG3x customParams
         if need_param_rewrite:
@@ -1253,6 +1331,7 @@ class Controller(Node):
                     self.poly.addNotice(dashboard_msg, key="active_monitors_summary")
             except Exception:
                 pass
+
 
     def _match_profile_candidate(self, candidate, uom=None, value=None):
         if not isinstance(candidate, dict):
@@ -1470,6 +1549,7 @@ class Controller(Node):
                 len(self.control_meta_index),
                 self.current_system_state,
             )
+            self._check_cold_start_auto_populate()
             return catalog_refreshed or refreshed
         finally:
             self._metadata_refresh_in_progress = False

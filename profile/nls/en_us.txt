@@ -9,6 +9,7 @@ ST-nls_ml_ctrl-GV3-NAME=System State
 CMD-nls_ml_ctrl-DON-NAME=Heartbeat On
 CMD-nls_ml_ctrl-DOF-NAME=Heartbeat Off
 CMD-nls_ml_ctrl-QUERY-NAME=Query
+CMD-nls_ml_ctrl-POPULATE-NAME=Auto-Populate Monitors
 
 connect-0=Disconnected
 connect-1=Connected

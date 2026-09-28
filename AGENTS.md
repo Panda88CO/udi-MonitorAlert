@@ -14,6 +14,7 @@ Agents should prioritize safe, minimal changes and preserve runtime behavior for
 - `iox_subscriber.py`: WebSocket subscription client for IoX event stream and XML event parsing.
 - `database.py`: SQLite persistence (`history.db`) and event logging.
 - `ml_engine.py`: Anomaly scoring logic (currently placeholder threshold logic).
+- `discovery_rules.py`: Declarative category registry and heuristics for telemetry candidate discovery.
 - `manifest.json`: Node server metadata consumed by Polyglot tooling.
 
 ## Architecture Flow
@@ -38,7 +39,7 @@ Agents should prioritize safe, minimal changes and preserve runtime behavior for
 ## Current State & Architecture
 - `manifest.json` and `server.json` are valid and specify `udiMonitor.py` entrypoint (v0.1.8).
 - Standard XML profile directory `profile/` installed with `ML_CTRL` node definition and matching editors.
-- Full automated test suite (64 tests across 9 suites) passes cleanly in local and CI environments.
+- Full automated test suite (69 tests across 9 suites) passes cleanly in local and CI environments.
 
 ## Agent Editing Guidance
 - Do not change integration contracts (config key names, callback signatures, driver IDs) unless requested.

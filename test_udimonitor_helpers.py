@@ -57,6 +57,7 @@ class TestUdiMonitorHelpers(unittest.TestCase):
     def test_controller_driver_definitions(self):
         self.assertEqual(udiMonitor.Controller.id, "ML_CTRL")
         self.assertIn("QUERY", udiMonitor.Controller.commands)
+        self.assertIn("POPULATE", udiMonitor.Controller.commands)
         driver_names = [d["driver"] for d in udiMonitor.Controller.drivers]
         for expected in ["ST", "ALARM", "GV0", "GV1", "GV2", "GV3"]:
             self.assertIn(expected, driver_names)

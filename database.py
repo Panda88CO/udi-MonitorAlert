@@ -8,6 +8,7 @@ import json
 import hashlib
 from datetime import datetime, timezone
 from typing import Any
+import discovery_rules
 
 try:
     _udi_module = importlib.import_module("udi_interface")
@@ -1842,6 +1843,102 @@ def prune_events_dual_retention(
         "monitored_deleted": max(0, monitored_deleted),
         "total_deleted": max(0, unmonitored_deleted) + max(0, monitored_deleted),
     }
+
+
+def discover_candidate_monitors(
+    exclude_node_controls: set[tuple[str, str]] | None = None,
+    category_filter: str | None = None,
+    custom_categories: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Discover telemetry controls eligible for monitoring from node_control_static.
+
+    Applies declarative classification rules from discovery_rules.py.
+    """
+    excluded = exclude_node_controls or set()
+    cat_filter = str(category_filter).strip().lower() if category_filter else None
+    if cat_filter in ("all", "true", "1", "yes", "force"):
+        cat_filter = None
+
+    conn = _connect()
+    cursor = conn.cursor()
+    _ensure_node_control_static_schema(cursor)
+
+    cursor.execute(
+        """
+        SELECT node_id, control, name, uom, uom_label, min_value, max_value, is_timestamp_like
+        FROM node_control_static
+        ORDER BY node_id ASC, control ASC
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    candidates: list[dict[str, Any]] = []
+    for row in rows:
+        node_id = str(row["node_id"] or "").strip()
+        control = str(row["control"] or "").strip()
+        if not node_id or not control:
+            continue
+        if (node_id, control) in excluded:
+            continue
+
+        match = discovery_rules.classify_candidate(
+            node_id=node_id,
+            control=control,
+            name=row["name"],
+            uom=row["uom"],
+            uom_label=row["uom_label"],
+            min_value=row["min_value"],
+            max_value=row["max_value"],
+            is_timestamp_like=bool(row["is_timestamp_like"]),
+            categories=custom_categories,
+        )
+        if not match:
+            continue
+
+        cat_name, preset = match
+        if cat_filter and cat_name.lower() != cat_filter:
+            continue
+
+        friendly_name = (row["name"] or "").strip()
+        if friendly_name and friendly_name != control:
+            canonical_key = f"{node_id}.{control} [{friendly_name}]"
+        else:
+            canonical_key = f"{node_id}.{control}"
+
+        candidates.append({
+            "node_id": node_id,
+            "control": control,
+            "name": friendly_name or None,
+            "uom": row["uom"],
+            "uom_label": row["uom_label"],
+            "category": cat_name,
+            "preset": preset,
+            "canonical_key": canonical_key,
+        })
+
+    return candidates
+
+
+def prune_removed_monitor_tasks(active_task_ids: set[str]) -> int:
+    """Deactivate or remove monitor tasks that are no longer configured in customParams."""
+    conn = _connect()
+    cursor = conn.cursor()
+    _ensure_monitor_tasks_schema(cursor)
+
+    if not active_task_ids:
+        cursor.execute("DELETE FROM monitor_tasks")
+    else:
+        placeholders = ",".join("?" for _ in active_task_ids)
+        cursor.execute(
+            f"DELETE FROM monitor_tasks WHERE task_id NOT IN ({placeholders})",
+            tuple(active_task_ids),
+        )
+    pruned = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return pruned
+
 
 
 

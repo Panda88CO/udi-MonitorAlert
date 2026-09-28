@@ -154,5 +154,166 @@ class TestCustomParamsMonitor(unittest.TestCase):
         self.assertIn("spike, stuck", val)
         self.assertIn("Options:", val)
 
+    def test_discovery_rules_classification(self):
+        import discovery_rules
+
+        # 1. Irrigation
+        res = discovery_rules.classify_candidate("n001_rachio", "FLOW", name="Lawn Sprinkler Zone 1", uom=36)
+        self.assertIsNotNone(res)
+        self.assertEqual(res[0], "irrigation")
+        self.assertEqual(res[1], "spike, creep, stuck")
+
+        # 2. Temperature
+        res = discovery_rules.classify_candidate("n002_tstat", "CLITEMP", name="Living Room", uom=17)
+        self.assertIsNotNone(res)
+        self.assertEqual(res[0], "temperature")
+        self.assertEqual(res[1], "spike, stuck, hourly")
+
+        # 3. Power
+        res = discovery_rules.classify_candidate("n003_plug", "CURRENT_POWER", name="Coffee Maker", uom=73)
+        self.assertIsNotNone(res)
+        self.assertEqual(res[0], "power")
+        self.assertEqual(res[1], "hourly, spike")
+
+        # 4. Overpopulation Fallback
+        res = discovery_rules.classify_candidate("n004_tank", "LEVEL", name="Oil Tank Level", min_value=0.0, max_value=500.0)
+        self.assertIsNotNone(res)
+        self.assertEqual(res[0], "fallback")
+        self.assertEqual(res[1], "spike, stuck")
+
+        # 5. Exclusions
+        # Binary switch (0-100 without power)
+        res_sw = discovery_rules.classify_candidate("n005_switch", "ST", name="Kitchen Light", min_value=0.0, max_value=100.0)
+        self.assertIsNone(res_sw)
+        # Timestamp
+        res_ts = discovery_rules.classify_candidate("n006_clock", "GV1", name="Last Run Time", is_timestamp_like=True)
+        self.assertIsNone(res_ts)
+        # Self-controller
+        res_ctrl = discovery_rules.classify_candidate("ml_ctrl", "ST", name="Pattern Engine")
+        self.assertIsNone(res_ctrl)
+
+    def test_register_custom_category(self):
+        import discovery_rules
+        try:
+            discovery_rules.register_category(
+                category="pool_chemistry",
+                description="Pool Chlorination & pH",
+                uoms=(55,),
+                controls=("PH", "ORP"),
+                keywords=("pool", "chlorine", "ph"),
+                preset="spike, stuck",
+            )
+            res = discovery_rules.classify_candidate("n010_pool", "PH", name="Pool Chlorine Feeder")
+            self.assertIsNotNone(res)
+            self.assertEqual(res[0], "pool_chemistry")
+        finally:
+            discovery_rules.reset_categories_to_default()
+
+    def test_database_discover_candidate_monitors(self):
+        database.upsert_static_metadata("n001_irr", "FLOW", name="Lawn Sprinklers", uom=36, uom_label="GPM")
+        database.upsert_static_metadata("n002_fridge", "TEMP", name="Kitchen Fridge", uom=17, uom_label="°F")
+        database.upsert_static_metadata("n003_switch", "ST", name="Hall Light", min_value=0.0, max_value=100.0)
+
+        all_cands = database.discover_candidate_monitors()
+        cand_keys = {c["canonical_key"] for c in all_cands}
+        self.assertIn("n001_irr.FLOW [Lawn Sprinklers]", cand_keys)
+        self.assertIn("n002_fridge.TEMP [Kitchen Fridge]", cand_keys)
+        self.assertNotIn("n003_switch.ST [Hall Light]", cand_keys)
+
+        # Test category filter
+        irr_only = database.discover_candidate_monitors(category_filter="irrigation")
+        self.assertEqual(len(irr_only), 1)
+        self.assertEqual(irr_only[0]["category"], "irrigation")
+
+        # Test exclude existing
+        excluded = database.discover_candidate_monitors(exclude_node_controls={("n001_irr", "FLOW")})
+        excl_keys = {c["canonical_key"] for c in excluded}
+        self.assertNotIn("n001_irr.FLOW [Lawn Sprinklers]", excl_keys)
+        self.assertIn("n002_fridge.TEMP [Kitchen Fridge]", excl_keys)
+
+    def test_auto_populate_custom_params_workflow_and_pruning(self):
+        database.upsert_static_metadata("n001_irr", "FLOW", name="Lawn Sprinklers", uom=36, uom_label="GPM")
+        database.upsert_static_metadata("n002_fridge", "TEMP", name="Kitchen Fridge", uom=17, uom_label="°F")
+
+        class MockPoly:
+            START = "start"
+            STOP = "stop"
+            CUSTOMPARAMS = "customparams"
+            def __init__(self):
+                self.saved_params = None
+                self.notices = {}
+                self.config = {}
+            def subscribe(self, *args, **kwargs):
+                pass
+            def setCustomParams(self, params):
+                self.saved_params = dict(params)
+            def addNotice(self, msg, key="default"):
+                self.notices[key] = msg
+
+        poly = MockPoly()
+        ctrl = udiMonitor.Controller(poly, "primary", "ctl", "Controller")
+
+        # User triggers auto_populate via customParams
+        raw_params = {
+            "isy_ip": "192.168.1.240",
+            "auto_populate": "true",
+        }
+        ctrl._sync_custom_params_monitors(raw_params)
+
+        # 1. Verify customParams were auto-populated
+        self.assertIsNotNone(poly.saved_params)
+        self.assertIn("n001_irr.FLOW [Lawn Sprinklers]", poly.saved_params)
+        self.assertIn("n002_fridge.TEMP [Kitchen Fridge]", poly.saved_params)
+        self.assertEqual(poly.saved_params["n001_irr.FLOW [Lawn Sprinklers]"], "spike, creep, stuck")
+        self.assertEqual(poly.saved_params["n002_fridge.TEMP [Kitchen Fridge]"], "spike, stuck, hourly")
+        self.assertTrue(poly.saved_params["auto_populate"].startswith("completed"))
+
+        # 2. Verify tasks were created in database
+        active = database.load_active_monitor_tasks()
+        active_ids = {t["task_id"] for t in active}
+        self.assertIn("n001_irr_FLOW_spike", active_ids)
+        self.assertIn("n002_fridge_TEMP_spike", active_ids)
+
+        # 3. Simulate user erasing the fridge row in PG3x and saving
+        erased_params = dict(poly.saved_params)
+        del erased_params["n002_fridge.TEMP [Kitchen Fridge]"]
+
+        ctrl._sync_custom_params_monitors(erased_params)
+
+        # Verify fridge task was pruned from database!
+        active_after = database.load_active_monitor_tasks()
+        active_ids_after = {t["task_id"] for t in active_after}
+        self.assertIn("n001_irr_FLOW_spike", active_ids_after)
+        self.assertNotIn("n002_fridge_TEMP_spike", active_ids_after)
+
+    def test_cold_start_auto_populate(self):
+        database.upsert_static_metadata("n001_irr", "FLOW", name="Lawn Sprinklers", uom=36, uom_label="GPM")
+
+        class MockPoly:
+            START = "start"
+            STOP = "stop"
+            CUSTOMPARAMS = "customparams"
+            def __init__(self):
+                self.saved_params = None
+                self.notices = {}
+                self.config = {"customParams": {"isy_ip": "192.168.1.240"}}
+            def subscribe(self, *args, **kwargs):
+                pass
+            def setCustomParams(self, params):
+                self.saved_params = dict(params)
+            def addNotice(self, msg, key="default"):
+                self.notices[key] = msg
+
+        poly = MockPoly()
+        ctrl = udiMonitor.Controller(poly, "primary", "ctl", "Controller")
+
+        # Cold start check should detect no monitors and run auto_populate
+        ctrl._check_cold_start_auto_populate()
+
+        self.assertIsNotNone(poly.saved_params)
+        self.assertIn("n001_irr.FLOW [Lawn Sprinklers]", poly.saved_params)
+        self.assertTrue(poly.saved_params["auto_populate"].startswith("completed"))
+
 if __name__ == "__main__":
     unittest.main()
+
