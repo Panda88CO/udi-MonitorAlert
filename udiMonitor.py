@@ -38,6 +38,8 @@ except ImportError:
             pass
         def setCustomParams(self, params):
             pass
+        def send(self, message, msg_type="custom"):
+            pass
         def addNotice(self, msg, key="default"):
             self.notices[key] = msg
         def removeNotice(self, key):
@@ -57,9 +59,44 @@ except ImportError:
         def runForever(self):
             pass
 
-    class Custom:
-        def __init__(self, *args, **kwargs):
-            pass
+    class Custom(dict):
+        def __init__(self, poly=None, custom="customparams"):
+            super().__init__()
+            self.poly = poly
+            self.custom = custom
+            self._rawdata = {}
+        def load(self, new_data, save=False):
+            self._rawdata = dict(new_data or {})
+            self.clear()
+            self.update(self._rawdata)
+            if save:
+                self._save()
+        def _save(self):
+            if hasattr(self.poly, "send") and callable(self.poly.send):
+                msg = {"set": [{"key": self.custom, "value": self._rawdata}]}
+                self.poly.send(msg, "custom")
+            elif hasattr(self.poly, "setCustomParams") and callable(self.poly.setCustomParams):
+                self.poly.setCustomParams(self._rawdata)
+        def __getitem__(self, key):
+            return self._rawdata.get(key)
+        def __setitem__(self, key, value):
+            self._rawdata[key] = value
+            super().__setitem__(key, value)
+            self._save()
+        def get(self, key, default=None):
+            return self._rawdata.get(key, default)
+        def keys(self):
+            return self._rawdata.keys()
+        def values(self):
+            return self._rawdata.values()
+        def items(self):
+            return self._rawdata.items()
+        def __len__(self):
+            return len(self._rawdata)
+        def __iter__(self):
+            return iter(self._rawdata)
+        def __contains__(self, key):
+            return key in self._rawdata
 
     LOGGER = logging.getLogger("udiMonitor")
 
@@ -126,7 +163,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.8")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.1.9")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -640,9 +677,15 @@ class Controller(Node):
 
     def handle_custom_params(self, params):
         if isinstance(params, dict):
-            self.custom_params = dict(params)
+            if hasattr(self.custom_params, "load") and callable(self.custom_params.load):
+                self.custom_params.load(params, save=False)
+            else:
+                self.custom_params = dict(params)
         else:
-            self.custom_params = {}
+            if hasattr(self.custom_params, "load") and callable(self.custom_params.load):
+                self.custom_params.load({}, save=False)
+            else:
+                self.custom_params = {}
 
         has_isy_ip = bool(
             self.custom_params.get("isy_ip")
@@ -921,11 +964,14 @@ class Controller(Node):
         self._run_metadata_refresh_cycle(reason="custom_params")
 
     def _get_custom_params(self):
+        if hasattr(self, "custom_params") and hasattr(self.custom_params, "_rawdata"):
+            if isinstance(self.custom_params._rawdata, dict) and self.custom_params._rawdata:
+                return dict(self.custom_params._rawdata)
         if isinstance(self.custom_params, dict) and self.custom_params:
-            return self.custom_params
+            return dict(self.custom_params)
         params = self.poly.config.get("customParams", {})
         if isinstance(params, dict):
-            return params
+            return dict(params)
         return {}
 
     def _is_valid_dynamic_event(self, node_id, control, value):
@@ -1177,6 +1223,39 @@ class Controller(Node):
             finally:
                 self._notification_queue.task_done()
 
+    def _save_custom_params(self, params_dict: dict):
+        """Persist updated customParams back to Polyglot PG3x and local cache."""
+        saved = False
+        if hasattr(self, "custom_params") and hasattr(self.custom_params, "load"):
+            try:
+                self.custom_params.load(params_dict, save=True)
+                saved = True
+            except Exception as exc:
+                LOGGER.warning("custom_params.load(save=True) failed: %s", exc)
+
+        if not saved and hasattr(self.poly, "send") and callable(self.poly.send):
+            try:
+                msg = {"set": [{"key": "customparams", "value": params_dict}]}
+                self.poly.send(msg, "custom")
+                if hasattr(self, "custom_params") and hasattr(self.custom_params, "load"):
+                    self.custom_params.load(params_dict, save=False)
+                elif hasattr(self, "custom_params"):
+                    self.custom_params = dict(params_dict)
+                saved = True
+            except Exception as exc:
+                LOGGER.warning("poly.send(custom) failed: %s", exc)
+
+        if not saved and hasattr(self.poly, "setCustomParams") and callable(self.poly.setCustomParams):
+            try:
+                self.poly.setCustomParams(params_dict)
+                if hasattr(self, "custom_params") and hasattr(self.custom_params, "load"):
+                    self.custom_params.load(params_dict, save=False)
+                elif hasattr(self, "custom_params"):
+                    self.custom_params = dict(params_dict)
+                saved = True
+            except Exception as exc:
+                LOGGER.warning("poly.setCustomParams failed: %s", exc)
+
     def _auto_populate_custom_params(self, category_filter=None, force=False):
         current_params = dict(self._get_custom_params() or {})
         existing_monitors = set()
@@ -1194,11 +1273,7 @@ class Controller(Node):
         if not candidates:
             LOGGER.info("Auto-populate found 0 new candidates (filter=%s, force=%s)", category_filter, force)
             current_params["auto_populate"] = "completed (0 new candidates found)"
-            try:
-                if hasattr(self.poly, "setCustomParams"):
-                    self.poly.setCustomParams(current_params)
-            except Exception as exc:
-                LOGGER.debug("setCustomParams call: %s", exc)
+            self._save_custom_params(current_params)
             return current_params
 
         for cand in candidates:
@@ -1208,16 +1283,15 @@ class Controller(Node):
 
         count = len(candidates)
         current_params["auto_populate"] = f"completed ({count} candidates added)"
+        self._save_custom_params(current_params)
         try:
-            if hasattr(self.poly, "setCustomParams"):
-                self.poly.setCustomParams(current_params)
             if hasattr(self.poly, "addNotice"):
                 self.poly.addNotice(
                     f"Auto-populated {count} candidate telemetry monitors into Configuration.",
                     key="auto_populate_summary",
                 )
         except Exception as exc:
-            LOGGER.debug("Auto-populate PG3x update call: %s", exc)
+            LOGGER.debug("Auto-populate notice call: %s", exc)
 
         LOGGER.info("Auto-populated %d candidate monitors into customParams (filter=%s)", count, category_filter)
         return current_params
@@ -1234,7 +1308,9 @@ class Controller(Node):
             return
 
         LOGGER.info("Cold-start detected with 0 configured monitors. Running initial candidate discovery.")
-        self._auto_populate_custom_params()
+        populated = self._auto_populate_custom_params()
+        if populated:
+            self._sync_custom_params_monitors(populated)
 
     def _sync_custom_params_monitors(self, params: dict):
         if not isinstance(params, dict):
@@ -1317,11 +1393,7 @@ class Controller(Node):
 
         # If any keys or values were reformatted/suggested, update PG3x customParams
         if need_param_rewrite:
-            try:
-                if hasattr(self.poly, "setCustomParams"):
-                    self.poly.setCustomParams(updated_params)
-            except Exception as exc:
-                LOGGER.debug("setCustomParams call: %s", exc)
+            self._save_custom_params(updated_params)
 
         # Update dashboard notice with active monitors summary
         if monitored_summary:

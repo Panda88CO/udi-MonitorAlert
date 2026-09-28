@@ -175,10 +175,10 @@ class TestCustomParamsMonitor(unittest.TestCase):
         self.assertEqual(res[0], "power")
         self.assertEqual(res[1], "hourly, spike")
 
-        # 4. Overpopulation Fallback
+        # 4. Tank Level
         res = discovery_rules.classify_candidate("n004_tank", "LEVEL", name="Oil Tank Level", min_value=0.0, max_value=500.0)
         self.assertIsNotNone(res)
-        self.assertEqual(res[0], "fallback")
+        self.assertEqual(res[0], "tank_level")
         self.assertEqual(res[1], "spike, stuck")
 
         # 5. Exclusions
@@ -191,6 +191,9 @@ class TestCustomParamsMonitor(unittest.TestCase):
         # Self-controller
         res_ctrl = discovery_rules.classify_candidate("ml_ctrl", "ST", name="Pattern Engine")
         self.assertIsNone(res_ctrl)
+        # Non-telemetry device (dimmer/fan level without telemetry keywords/uom) should NOT match fallback
+        res_fan = discovery_rules.classify_candidate("n007_fan", "SPEED", name="Ceiling Fan Speed", min_value=0.0, max_value=3.0, uom=25)
+        self.assertIsNone(res_fan)
 
     def test_register_custom_category(self):
         import discovery_rules
@@ -313,6 +316,39 @@ class TestCustomParamsMonitor(unittest.TestCase):
         self.assertIsNotNone(poly.saved_params)
         self.assertIn("n001_irr.FLOW [Lawn Sprinklers]", poly.saved_params)
         self.assertTrue(poly.saved_params["auto_populate"].startswith("completed"))
+
+    def test_custom_params_persistence_and_pg3_send(self):
+        class MockPG3Poly:
+            START = "start"
+            STOP = "stop"
+            CUSTOMPARAMS = "customparams"
+            def __init__(self):
+                self.sent_messages = []
+                self.notices = {}
+                self.config = {}
+            def subscribe(self, *args, **kwargs):
+                pass
+            def send(self, message, msg_type="custom"):
+                self.sent_messages.append((msg_type, message))
+            def addNotice(self, msg, key="default"):
+                self.notices[key] = msg
+
+        poly = MockPG3Poly()
+        ctrl = udiMonitor.Controller(poly, "primary", "ctl", "Controller")
+
+        # 1. Verify handle_custom_params updates self.custom_params without destroying Custom instance
+        ctrl.handle_custom_params({"isy_ip": "192.168.1.100", "test_key": "val1"})
+        self.assertTrue(hasattr(ctrl.custom_params, "load"))
+        self.assertEqual(ctrl._get_custom_params().get("isy_ip"), "192.168.1.100")
+
+        # 2. Call _save_custom_params and verify poly.send was called with PG3 format
+        ctrl._save_custom_params({"isy_ip": "192.168.1.100", "n001.GV1": "spike"})
+        self.assertTrue(len(poly.sent_messages) > 0)
+        msg_type, msg = poly.sent_messages[-1]
+        self.assertEqual(msg_type, "custom")
+        self.assertIn("set", msg)
+        self.assertEqual(msg["set"][0]["key"], "customparams")
+        self.assertEqual(msg["set"][0]["value"]["n001.GV1"], "spike")
 
 if __name__ == "__main__":
     unittest.main()

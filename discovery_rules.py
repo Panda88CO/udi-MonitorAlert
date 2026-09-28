@@ -8,12 +8,12 @@ DEFAULT_DISCOVERY_CATEGORIES: list[dict[str, Any]] = [
     {
         "category": "irrigation",
         "description": "Irrigation, Sprinklers & Watering Systems",
-        "uoms": (34, 35, 36, 44, 48, 105),  # Gallons, Liters, GPM, Minutes, GPH, L/h
-        "controls": ("FLOW", "WATER_FLOW", "RUNTIME", "ZONE", "VALVE", "IRRIGATION"),
+        "uoms": (34, 35),  # Gallons, Liters
+        "controls": ("FLOW", "WATER_FLOW", "RUNTIME", "IRRIGATION"),
         "keywords": (
-            "irrigation", "sprinkler", "lawn", "zone", "valve",
-            "soaker", "drip", "rachio", "orbit", "rainbird",
-            "hydrawise", "garden", "backflow", "watering"
+            "irrigation", "sprinkler", "lawn", "soaker", "drip",
+            "rachio", "orbit", "rainbird", "hydrawise", "garden",
+            "backflow", "watering"
         ),
         "preset": "spike, creep, stuck",
     },
@@ -32,8 +32,8 @@ DEFAULT_DISCOVERY_CATEGORIES: list[dict[str, Any]] = [
     {
         "category": "power",
         "description": "Power, Energy & Electrical Telemetry",
-        "uoms": (73, 33, 74, 72, 119, 30),  # Watt, kW, Amp, Volt, WattHour, kWh
-        "controls": ("WATTS", "POWER", "CURRENT_POWER", "ENERGY", "KWH", "TOTAL_POWER"),
+        "uoms": (73, 30, 74, 72, 119, 33),  # Watt, kW, Amp, Volt, WattHour, kWh
+        "controls": ("WATTS", "POWER", "CURRENT_POWER", "ENERGY", "KWH", "TOTAL_POWER", "CPW"),
         "keywords": (
             "watt", "power", "energy", "kwh", "draw", "current",
             "amp", "solar", "grid", "inverter", "generation", "consumption"
@@ -43,7 +43,7 @@ DEFAULT_DISCOVERY_CATEGORIES: list[dict[str, Any]] = [
     {
         "category": "water",
         "description": "Water Flow, Volume & Leaks",
-        "uoms": (34, 35, 36, 105, 48),  # Gallon, Liter, GPM, L/h, GPH
+        "uoms": (34, 35),  # Gallon, Liter
         "controls": ("FLOW", "WATER_FLOW", "WATER"),
         "keywords": (
             "water", "flow", "leak", "gpm", "meter", "pump",
@@ -52,9 +52,20 @@ DEFAULT_DISCOVERY_CATEGORIES: list[dict[str, Any]] = [
         "preset": "spike, creep, stuck",
     },
     {
+        "category": "tank_level",
+        "description": "Tanks, Fuel & Liquid Levels",
+        "uoms": (6, 7, 8, 34, 35),  # Cu Ft, Cu M, Gallon, Liter
+        "controls": ("TANK", "LEVEL", "DEPTH", "VOLUME"),
+        "keywords": (
+            "tank", "cistern", "propane", "fuel", "oil level",
+            "sump pit", "well depth"
+        ),
+        "preset": "spike, stuck",
+    },
+    {
         "category": "humidity",
         "description": "Relative Humidity & Moisture",
-        "uoms": (22, 51),  # RH%, Percent
+        "uoms": (22,),  # RH%
         "controls": ("CLIHUM", "HUMIDITY", "MOISTURE"),
         "keywords": ("humidity", "moisture", "soil", "hygrometer"),
         "preset": "spike, stuck",
@@ -70,7 +81,7 @@ DEFAULT_DISCOVERY_CATEGORIES: list[dict[str, Any]] = [
     {
         "category": "battery",
         "description": "Battery Level & Health",
-        "uoms": (51,),  # Percent
+        "uoms": (),  # Percent handled conditionally in classify_candidate
         "controls": ("BATLVL", "BATTERY"),
         "keywords": ("battery", "batt"),
         "preset": "stuck(24h)",
@@ -86,9 +97,9 @@ DEFAULT_DISCOVERY_CATEGORIES: list[dict[str, Any]] = [
     {
         "category": "weather",
         "description": "Weather & Environmental Conditions",
-        "uoms": (106, 107, 116, 117, 118),  # Rain rate, Wind speed, Lux
-        "controls": ("LUMIN", "RAIN_RATE", "WIND_SPEED"),
-        "keywords": ("rain", "wind", "lux", "luminance", "weather"),
+        "uoms": (36, 48, 105, 106, 107, 116, 117, 118),  # Lux, Wind speed, Rain, Rain rate, Wind speed, Lux, UV, Solar rad
+        "controls": ("LUMIN", "RAIN_RATE", "WIND_SPEED", "UV", "SOLRAD", "WINDIR"),
+        "keywords": ("rain", "wind", "lux", "luminance", "weather", "uv index", "solar radiation"),
         "preset": "spike, stuck",
     },
 ]
@@ -148,13 +159,13 @@ def _is_binary_switch(
     max_value: float | None,
 ) -> bool:
     """Check if control is a standard binary on/off switch without continuous telemetry."""
-    if uom in (73, 33, 74, 72, 119, 30, 4, 17, 34, 35, 36):
+    if uom in (73, 30, 74, 72, 119, 33, 4, 17, 34, 35, 78, 79, 80, 82, 83):
         return False
     ctrl_upper = str(control or "").upper()
     if ctrl_upper in ("ST", "STATUS"):
         if min_value is not None and max_value is not None:
             # Common binary ranges: 0-1, 0-100, 0-255
-            if (min_value == 0.0 and max_value in (1.0, 100.0, 255.0)) and uom not in (4, 17, 73, 33):
+            if (min_value == 0.0 and max_value in (1.0, 100.0, 255.0)) and uom not in (4, 17, 73, 30, 33):
                 return True
     return False
 
@@ -229,14 +240,6 @@ def classify_candidate(
         for kw in cat_keywords:
             if kw and kw in text_to_search:
                 return cat_name, preset
-
-    # Overpopulation Fallback: Continuous analog telemetry with distinct min/max range
-    if min_value is not None and max_value is not None and min_value != max_value:
-        return "fallback", "spike, stuck"
-
-    # Numeric UOM present that wasn't excluded
-    if uom_int is not None and uom_int not in (25, 151, 152):
-        return "fallback", "spike, stuck"
 
     return None
 
