@@ -30,6 +30,7 @@ Agents should prioritize safe, minimal changes and preserve runtime behavior for
 - Keep in-code profile definitions (`MY_EDITORS`, `NODE_DEFINITIONS`) consistent with XML definitions.
 - Preserve Node subclass IDs (`ML_CTRL`) unless a migration is explicitly planned.
 - Prefer targeted edits over broad refactors in controller/event-handling paths.
+- Always increment the version number (`VERSION` in `udiMonitor.py`) when implementing new functionality or modifying features.
 
 ## External Dependencies and Runtime Assumptions
 - Requires running Polyglot/IoX environment with config keys: `isy_ip` (or `isyIp`), `isy_port`, `isy_user`, `isy_password`.
@@ -37,7 +38,7 @@ Agents should prioritize safe, minimal changes and preserve runtime behavior for
 - `history.db` is created relative to process working directory.
 
 ## Current State & Architecture
-- `manifest.json` and `server.json` are valid and specify `udiMonitor.py` entrypoint (v0.1.9).
+- `manifest.json` and `server.json` are valid and specify `udiMonitor.py` entrypoint (v0.2.0).
 - Standard XML profile directory `profile/` installed with `ML_CTRL` node definition and matching editors.
 - Full automated test suite (70 tests across 9 suites) passes cleanly in local and CI environments.
 
@@ -46,6 +47,7 @@ Agents should prioritize safe, minimal changes and preserve runtime behavior for
 - When changing event flow, validate all touched layers: `iox_subscriber.py`, `udiMonitor.py`, `database.py`, and `ml_engine.py`.
 - Keep dependency additions minimal and justified in `requirements.txt`.
 - Run `python3 -m unittest discover -v` to verify changes.
+- Ensure `VERSION` in `udiMonitor.py` is bumped whenever introducing new functionality.
 
 ## Suggested Next Customizations
 - Add a focused instruction file for Python files (`.github/instructions/python.instructions.md`) with lint/test/typing expectations.
