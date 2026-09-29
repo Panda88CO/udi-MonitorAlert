@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "name": "ML Pattern Engine",
   "developer": "Panda88CO",
   "description": "An intelligent pattern and outlier tracking Node Server for IoX.",

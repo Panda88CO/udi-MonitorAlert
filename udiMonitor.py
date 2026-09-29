@@ -163,7 +163,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.0")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.1")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -436,6 +436,8 @@ def parse_node_control_key(raw_key: str) -> tuple[str | None, str | None, str | 
     """Parse node_id, control, and optional label from raw customParams key.
 
     Handles:
+    - [SPAN 192.168.1.76 - Dryer - Energy last hour] n015_8b4c01000cac1a.GV1
+    - [Water Temperature] n012_8b4c01000cac1a.GV1
     - ${sys.node.n012_8b4c01000cac1a.GV1}
     - sys.node.n012_8b4c01000cac1a.GV1
     - n012_8b4c01000cac1a.GV1 [Friendly Name]
@@ -448,7 +450,7 @@ def parse_node_control_key(raw_key: str) -> tuple[str | None, str | None, str | 
     if not cleaned or cleaned.lower() in RESERVED_CUSTOM_PARAM_KEYS:
         return None, None, None
 
-    # Strip ${...} wrapper
+    # Strip ${...} wrapper if wrapped around entire string
     if cleaned.startswith("${") and cleaned.endswith("}"):
         cleaned = cleaned[2:-1].strip()
 
@@ -456,12 +458,25 @@ def parse_node_control_key(raw_key: str) -> tuple[str | None, str | None, str | 
     if cleaned.startswith("sys.node."):
         cleaned = cleaned[9:].strip()
 
-    # Extract existing bracketed label: e.g. "node.control [Friendly Name]"
+    # Extract optional bracketed label:
+    # 1. Leading bracket: "[Friendly Name] node.control"
+    # 2. Trailing bracket (legacy): "node.control [Friendly Name]"
     label = None
-    bracket_match = re.search(r"\[(.*?)\]$", cleaned)
-    if bracket_match:
-        label = bracket_match.group(1).strip()
-        cleaned = cleaned[:bracket_match.start()].strip()
+    leading_bracket = re.match(r"^\[(.*?)\]\s*(.*)$", cleaned)
+    if leading_bracket:
+        label = leading_bracket.group(1).strip()
+        cleaned = leading_bracket.group(2).strip()
+    else:
+        trailing_bracket = re.search(r"^(.*?)\s*\[(.*?)\]$", cleaned)
+        if trailing_bracket:
+            label = trailing_bracket.group(2).strip()
+            cleaned = trailing_bracket.group(1).strip()
+
+    # In case sys.node or ${} was inside or after the leading bracket
+    if cleaned.startswith("${") and cleaned.endswith("}"):
+        cleaned = cleaned[2:-1].strip()
+    if cleaned.startswith("sys.node."):
+        cleaned = cleaned[9:].strip()
 
     if "." in cleaned:
         parts = cleaned.split(".", 1)
@@ -1350,12 +1365,23 @@ class Controller(Node):
                         pass
                 continue
 
-            # Look up metadata in database for friendly name
+            # Look up metadata in database for friendly name and node name
             meta = database.get_node_control_metadata(node_id, control)
-            friendly_name = (meta.get("name") if meta else None) or existing_label or control
+            node_name = (meta.get("node_name") if meta else None)
+            param_name = (meta.get("name") if meta else None)
 
-            # Build canonical labeled key: e.g. "n012_8b4c01000cac1a.GV1 [Water Temperature]"
-            canonical_key = f"{node_id}.{control} [{friendly_name}]" if friendly_name and friendly_name != control else f"{node_id}.{control}"
+            # Preserve user-supplied leading label if already specified; otherwise build composite friendly label
+            if raw_key.strip().startswith("[") and existing_label:
+                effective_label = existing_label
+            else:
+                effective_label = database.build_friendly_label(
+                    node_name=node_name,
+                    param_name=param_name,
+                    control=control,
+                ) or existing_label
+
+            # Build canonical labeled key: e.g. "[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1"
+            canonical_key = database.format_canonical_param_key(node_id, control, effective_label)
 
             val_str = str(raw_val or "").strip()
 
@@ -1368,14 +1394,14 @@ class Controller(Node):
                 LOGGER.info("Prompted monitor recommendations for %s: %s", canonical_key, suggested_val)
                 continue
 
-            # Case C: Key wasn't canonical (e.g. was ${sys.node...} or lacked friendly label)
+            # Case C: Key wasn't canonical (e.g. was ${sys.node...}, legacy trailing bracket, or lacked friendly label)
             if raw_key != canonical_key:
                 updated_params.pop(raw_key, None)
                 updated_params[canonical_key] = val_str
                 need_param_rewrite = True
 
             # Parse monitor tasks
-            tasks = parse_monitor_options(val_str, node_id, control, friendly_name=friendly_name)
+            tasks = parse_monitor_options(val_str, node_id, control, friendly_name=effective_label or param_name)
             if tasks:
                 new_tasks.extend(tasks)
                 task_types = [t["task_type"] for t in tasks]

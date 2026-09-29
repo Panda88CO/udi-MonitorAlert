@@ -471,6 +471,19 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
     if status_xml is None:
         return [], {"status_nodes": 0, "status_properties": 0, "slots_loaded": 0, "records": 0}
 
+    # Fetch user-assigned node names from /rest/nodes
+    node_names = {}
+    try:
+        nodes_xml = _fetch_xml_with_auth(f"{rest_base_url}/nodes", auth=auth, timeout=timeout)
+        if nodes_xml is not None:
+            for n in nodes_xml.findall(".//node"):
+                nid = n.findtext("address") or n.attrib.get("id") or n.attrib.get("flag")
+                nname = n.findtext("name") or n.attrib.get("name")
+                if nid and nname:
+                    node_names[str(nid).strip()] = str(nname).strip()
+    except Exception:
+        pass
+
     records = []
     loaded_slots = set()
     status_nodes = 0
@@ -481,6 +494,8 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
         if not node_id:
             continue
         status_nodes += 1
+
+        node_name = node.attrib.get("name") or node.findtext("name") or node_names.get(str(node_id).strip())
 
         slot = node.attrib.get("profile") or _slot_from_node_id(node_id)
         slot_assets = None
@@ -499,6 +514,16 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
             value_int = _coerce_int(value_raw)
             formatted = prop.attrib.get("formatted")
             value_str = "" if value_raw is None else str(value_raw)
+
+            # Resolve parameter name from property attribute or profile NLS
+            param_name = prop.attrib.get("name") or prop.findtext("name")
+            if not param_name and slot_assets:
+                nls_map = slot_assets.get("nls", {})
+                param_name = (
+                    nls_map.get(f"ST-{control}-NAME")
+                    or nls_map.get(f"IX-{control}-NAME")
+                    or nls_map.get(f"{control}-NAME")
+                )
 
             selected_candidate = _select_candidate(slot_assets, control, uom, value_str)
             selected_nls_prefix = selected_candidate.get("nls") if selected_candidate else None
@@ -526,6 +551,8 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
             records.append({
                 "node_id": str(node_id),
                 "control": str(control),
+                "name": str(param_name).strip() if param_name else None,
+                "node_name": str(node_name).strip() if node_name else None,
                 "uom": uom,
                 "uom_label": UOM_LABELS.get(uom) if uom is not None else None,
                 "source": "status_profile" if slot else "status_internal",

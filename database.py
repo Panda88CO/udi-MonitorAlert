@@ -76,6 +76,8 @@ def _ensure_node_control_static_schema(cursor: sqlite3.Cursor):
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN allowed_subset_json TEXT")
     if "allowed_subset_id" not in columns:
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN allowed_subset_id INTEGER")
+    if "node_name" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN node_name TEXT")
 
 
 def _ensure_allowed_subset_lookup_schema(cursor: sqlite3.Cursor):
@@ -283,6 +285,7 @@ def init_db():
             node_id TEXT NOT NULL,
             control TEXT NOT NULL,
             name TEXT,
+            node_name TEXT,
             action TEXT,
             uom INTEGER,
             enum_map_json TEXT,
@@ -452,6 +455,7 @@ def upsert_static_metadata(
     max_value: float | None = None,
     allowed_subset: list[str] | None = None,
     enum_map: dict[str, str] | None = None,
+    node_name: str | None = None,
 ):
     if not node_id or not control:
         return
@@ -469,6 +473,7 @@ def upsert_static_metadata(
             node_id,
             control,
             name,
+            node_name,
             action,
             uom,
             enum_map_json,
@@ -487,10 +492,11 @@ def upsert_static_metadata(
             allowed_subset_json,
             allowed_subset_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id, control)
         DO UPDATE SET
             name = COALESCE(excluded.name, node_control_static.name),
+            node_name = COALESCE(excluded.node_name, node_control_static.node_name),
             action = COALESCE(excluded.action, node_control_static.action),
             uom = COALESCE(excluded.uom, node_control_static.uom),
             enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
@@ -515,6 +521,7 @@ def upsert_static_metadata(
             node_id,
             control,
             name,
+            node_name,
             action,
             uom,
             enum_map_json,
@@ -607,6 +614,7 @@ def bulk_upsert_static_metadata(
                     node_id,
                     control,
                     name,
+                    node_name,
                     action,
                     uom,
                     enum_map_json,
@@ -625,10 +633,11 @@ def bulk_upsert_static_metadata(
                     allowed_subset_json,
                     allowed_subset_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(node_id, control)
                 DO UPDATE SET
                     name = COALESCE(excluded.name, node_control_static.name),
+                    node_name = COALESCE(excluded.node_name, node_control_static.node_name),
                     action = COALESCE(excluded.action, node_control_static.action),
                     uom = COALESCE(excluded.uom, node_control_static.uom),
                     enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
@@ -653,6 +662,7 @@ def bulk_upsert_static_metadata(
                     node_id,
                     control,
                     rec.get("name"),
+                    rec.get("node_name"),
                     rec.get("action"),
                     uom,
                     enum_map_json,
@@ -726,7 +736,7 @@ def get_node_control_metadata(node_id: str, control: str) -> dict[str, Any] | No
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT node_id, control, name, action, uom, uom_label, min_value, max_value, enum_map_json
+        SELECT node_id, control, name, node_name, action, uom, uom_label, min_value, max_value, enum_map_json
         FROM node_control_static
         WHERE node_id = ? AND control = ?
         """,
@@ -744,7 +754,7 @@ def get_node_all_controls(node_id: str) -> list[dict[str, Any]]:
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT node_id, control, name, action, uom, uom_label
+        SELECT node_id, control, name, node_name, action, uom, uom_label
         FROM node_control_static
         WHERE node_id = ?
         ORDER BY control ASC
@@ -1845,6 +1855,53 @@ def prune_events_dual_retention(
     }
 
 
+def build_friendly_label(
+    node_name: str | None,
+    param_name: str | None,
+    control: str | None = None,
+) -> str | None:
+    """Build a composite friendly label like 'SPAN 192.168.1.76 - Dryer - Energy last hour'."""
+    n_clean = str(node_name or "").strip()
+    p_clean = str(param_name or "").strip()
+    c_clean = str(control or "").strip()
+
+    # Avoid using raw control code as friendly param name (e.g. if name is literally "GV1" or "ST")
+    if p_clean and c_clean and p_clean.upper() == c_clean.upper():
+        p_clean = ""
+
+    if n_clean and p_clean:
+        if p_clean.lower().startswith(n_clean.lower()):
+            return p_clean
+        return f"{n_clean} - {p_clean}"
+    elif n_clean:
+        if c_clean and c_clean.lower() != n_clean.lower():
+            return f"{n_clean} - {c_clean}"
+        return n_clean
+    elif p_clean:
+        return p_clean
+    return None
+
+
+def format_canonical_param_key(
+    node_id: str,
+    control: str,
+    label: str | None = None,
+) -> str:
+    """Format canonical customParams key with optional leading bracketed label.
+
+    e.g. '[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1'
+    """
+    node_clean = str(node_id or "").strip()
+    ctrl_clean = str(control or "").strip()
+    lbl_clean = str(label or "").strip()
+    if lbl_clean.startswith("[") and lbl_clean.endswith("]"):
+        lbl_clean = lbl_clean[1:-1].strip()
+
+    if lbl_clean:
+        return f"[{lbl_clean}] {node_clean}.{ctrl_clean}"
+    return f"{node_clean}.{ctrl_clean}"
+
+
 def discover_candidate_monitors(
     exclude_node_controls: set[tuple[str, str]] | None = None,
     category_filter: str | None = None,
@@ -1865,7 +1922,7 @@ def discover_candidate_monitors(
 
     cursor.execute(
         """
-        SELECT node_id, control, name, uom, uom_label, min_value, max_value, is_timestamp_like
+        SELECT node_id, control, name, node_name, uom, uom_label, min_value, max_value, is_timestamp_like
         FROM node_control_static
         ORDER BY node_id ASC, control ASC
         """
@@ -1882,10 +1939,14 @@ def discover_candidate_monitors(
         if (node_id, control) in excluded:
             continue
 
+        node_name = (row["node_name"] or "").strip() if "node_name" in row.keys() else ""
+        friendly_param = (row["name"] or "").strip()
+
         match = discovery_rules.classify_candidate(
             node_id=node_id,
             control=control,
             name=row["name"],
+            node_name=node_name or None,
             uom=row["uom"],
             uom_label=row["uom_label"],
             min_value=row["min_value"],
@@ -1900,16 +1961,14 @@ def discover_candidate_monitors(
         if cat_filter and cat_name.lower() != cat_filter:
             continue
 
-        friendly_name = (row["name"] or "").strip()
-        if friendly_name and friendly_name != control:
-            canonical_key = f"{node_id}.{control} [{friendly_name}]"
-        else:
-            canonical_key = f"{node_id}.{control}"
+        label = build_friendly_label(node_name=node_name, param_name=friendly_param, control=control)
+        canonical_key = format_canonical_param_key(node_id, control, label)
 
         candidates.append({
             "node_id": node_id,
             "control": control,
-            "name": friendly_name or None,
+            "name": friendly_param or None,
+            "node_name": node_name or None,
             "uom": row["uom"],
             "uom_label": row["uom_label"],
             "category": cat_name,

@@ -32,24 +32,43 @@ class TestCustomParamsMonitor(unittest.TestCase):
         node, ctrl, label = udiMonitor.parse_node_control_key("sys.node.n012_8b4c01000cac1a.GV1")
         self.assertEqual(node, "n012_8b4c01000cac1a")
         self.assertEqual(ctrl, "GV1")
+        self.assertIsNone(label)
 
-        # 3. Canonical with friendly label
+        # 3. Canonical leading bracket with friendly composite label [Node - Param]
+        node, ctrl, label = udiMonitor.parse_node_control_key(
+            "[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1"
+        )
+        self.assertEqual(node, "n015_dryer")
+        self.assertEqual(ctrl, "GV1")
+        self.assertEqual(label, "SPAN 192.168.1.76 - Dryer - Energy last hour")
+
+        # 4. Leading bracket with wrapped ${sys.node...}
+        node, ctrl, label = udiMonitor.parse_node_control_key(
+            "[SPAN 192.168.1.76 - Dryer - Energy last hour] ${sys.node.n015_dryer.GV1}"
+        )
+        self.assertEqual(node, "n015_dryer")
+        self.assertEqual(ctrl, "GV1")
+        self.assertEqual(label, "SPAN 192.168.1.76 - Dryer - Energy last hour")
+
+        # 5. Backward compatibility: legacy trailing bracket label
         node, ctrl, label = udiMonitor.parse_node_control_key("n012_8b4c01000cac1a.GV1 [Water Temperature]")
         self.assertEqual(node, "n012_8b4c01000cac1a")
         self.assertEqual(ctrl, "GV1")
         self.assertEqual(label, "Water Temperature")
 
-        # 4. Colon separated
+        # 6. Colon separated
         node, ctrl, label = udiMonitor.parse_node_control_key("n008_meter:FLOW")
         self.assertEqual(node, "n008_meter")
         self.assertEqual(ctrl, "FLOW")
+        self.assertIsNone(label)
 
-        # 5. Node address only
+        # 7. Node address only (optional control and optional label)
         node, ctrl, label = udiMonitor.parse_node_control_key("${sys.node.n012_pool_heater}")
         self.assertEqual(node, "n012_pool_heater")
         self.assertIsNone(ctrl)
+        self.assertIsNone(label)
 
-        # 6. Reserved system parameters should be ignored
+        # 8. Reserved system parameters should be ignored
         node, ctrl, label = udiMonitor.parse_node_control_key("isy_ip")
         self.assertIsNone(node)
         node, ctrl, label = udiMonitor.parse_node_control_key("unmonitored_retention_days")
@@ -106,10 +125,10 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
         ctrl._sync_custom_params_monitors(raw_params)
 
-        # Assert customParams were rewritten with friendly name
+        # Assert customParams were rewritten with friendly name in leading bracket format
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("n012_pool.GV1 [Water Temperature]", poly.saved_params)
-        self.assertEqual(poly.saved_params["n012_pool.GV1 [Water Temperature]"], "spike, stuck")
+        self.assertIn("[Water Temperature] n012_pool.GV1", poly.saved_params)
+        self.assertEqual(poly.saved_params["[Water Temperature] n012_pool.GV1"], "spike, stuck")
         self.assertNotIn("${sys.node.n012_pool.GV1}", poly.saved_params)
 
         # Assert tasks were created in SQLite
@@ -122,6 +141,22 @@ class TestCustomParamsMonitor(unittest.TestCase):
         # Assert dashboard notice summary was updated
         self.assertIn("active_monitors_summary", poly.notices)
         self.assertIn("Water Temperature", poly.notices["active_monitors_summary"])
+
+        # 3. Test composite [Node Name - Parameter Name] formatting with node_name
+        database.upsert_static_metadata(
+            "n015_dryer", "GV1", name="Energy last hour", node_name="Dryer", uom_label="kWh"
+        )
+        ctrl._sync_custom_params_monitors({
+            "${sys.node.n015_dryer.GV1}": "spike",
+        })
+        self.assertIn("[Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
+        self.assertEqual(poly.saved_params["[Dryer - Energy last hour] n015_dryer.GV1"], "spike")
+
+        # 4. Optionality: User can provide raw key without bracket label and it parses without error
+        ctrl._sync_custom_params_monitors({
+            "n015_dryer.GV1": "stuck",
+        })
+        self.assertIn("[Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
 
     def test_sync_custom_params_help_mode(self):
         database.upsert_static_metadata("n012_pool", "GV2", name="Filter Pressure", uom_label="PSI")
@@ -149,8 +184,8 @@ class TestCustomParamsMonitor(unittest.TestCase):
         })
 
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("n012_pool.GV2 [Filter Pressure]", poly.saved_params)
-        val = poly.saved_params["n012_pool.GV2 [Filter Pressure]"]
+        self.assertIn("[Filter Pressure] n012_pool.GV2", poly.saved_params)
+        val = poly.saved_params["[Filter Pressure] n012_pool.GV2"]
         self.assertIn("spike, stuck", val)
         self.assertIn("Options:", val)
 
@@ -213,15 +248,17 @@ class TestCustomParamsMonitor(unittest.TestCase):
             discovery_rules.reset_categories_to_default()
 
     def test_database_discover_candidate_monitors(self):
-        database.upsert_static_metadata("n001_irr", "FLOW", name="Lawn Sprinklers", uom=36, uom_label="GPM")
+        database.upsert_static_metadata(
+            "n001_irr", "FLOW", name="Lawn Sprinklers", node_name="Yard Irrigation", uom=36, uom_label="GPM"
+        )
         database.upsert_static_metadata("n002_fridge", "TEMP", name="Kitchen Fridge", uom=17, uom_label="°F")
         database.upsert_static_metadata("n003_switch", "ST", name="Hall Light", min_value=0.0, max_value=100.0)
 
         all_cands = database.discover_candidate_monitors()
         cand_keys = {c["canonical_key"] for c in all_cands}
-        self.assertIn("n001_irr.FLOW [Lawn Sprinklers]", cand_keys)
-        self.assertIn("n002_fridge.TEMP [Kitchen Fridge]", cand_keys)
-        self.assertNotIn("n003_switch.ST [Hall Light]", cand_keys)
+        self.assertIn("[Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", cand_keys)
+        self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", cand_keys)
+        self.assertNotIn("n003_switch.ST", str(cand_keys))
 
         # Test category filter
         irr_only = database.discover_candidate_monitors(category_filter="irrigation")
@@ -231,8 +268,8 @@ class TestCustomParamsMonitor(unittest.TestCase):
         # Test exclude existing
         excluded = database.discover_candidate_monitors(exclude_node_controls={("n001_irr", "FLOW")})
         excl_keys = {c["canonical_key"] for c in excluded}
-        self.assertNotIn("n001_irr.FLOW [Lawn Sprinklers]", excl_keys)
-        self.assertIn("n002_fridge.TEMP [Kitchen Fridge]", excl_keys)
+        self.assertNotIn("[Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", excl_keys)
+        self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", excl_keys)
 
     def test_auto_populate_custom_params_workflow_and_pruning(self):
         database.upsert_static_metadata("n001_irr", "FLOW", name="Lawn Sprinklers", uom=36, uom_label="GPM")
@@ -265,10 +302,10 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
         # 1. Verify customParams were auto-populated
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("n001_irr.FLOW [Lawn Sprinklers]", poly.saved_params)
-        self.assertIn("n002_fridge.TEMP [Kitchen Fridge]", poly.saved_params)
-        self.assertEqual(poly.saved_params["n001_irr.FLOW [Lawn Sprinklers]"], "spike, creep, stuck")
-        self.assertEqual(poly.saved_params["n002_fridge.TEMP [Kitchen Fridge]"], "spike, stuck, hourly")
+        self.assertIn("[Lawn Sprinklers] n001_irr.FLOW", poly.saved_params)
+        self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", poly.saved_params)
+        self.assertEqual(poly.saved_params["[Lawn Sprinklers] n001_irr.FLOW"], "spike, creep, stuck")
+        self.assertEqual(poly.saved_params["[Kitchen Fridge] n002_fridge.TEMP"], "spike, stuck, hourly")
         self.assertTrue(poly.saved_params["auto_populate"].startswith("completed"))
 
         # 2. Verify tasks were created in database
@@ -279,7 +316,7 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
         # 3. Simulate user erasing the fridge row in PG3x and saving
         erased_params = dict(poly.saved_params)
-        del erased_params["n002_fridge.TEMP [Kitchen Fridge]"]
+        del erased_params["[Kitchen Fridge] n002_fridge.TEMP"]
 
         ctrl._sync_custom_params_monitors(erased_params)
 
@@ -314,7 +351,7 @@ class TestCustomParamsMonitor(unittest.TestCase):
         ctrl._check_cold_start_auto_populate()
 
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("n001_irr.FLOW [Lawn Sprinklers]", poly.saved_params)
+        self.assertIn("[Lawn Sprinklers] n001_irr.FLOW", poly.saved_params)
         self.assertTrue(poly.saved_params["auto_populate"].startswith("completed"))
 
     def test_custom_params_persistence_and_pg3_send(self):
