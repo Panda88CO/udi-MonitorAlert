@@ -135,8 +135,8 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
         # Assert customParams were rewritten with friendly name in leading bracket format
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("[Water Temperature] n012_pool.GV1", poly.saved_params)
-        self.assertEqual(poly.saved_params["[Water Temperature] n012_pool.GV1"], "spike, stuck")
+        self.assertIn("[n012: Water Temperature] n012_pool.GV1", poly.saved_params)
+        self.assertEqual(poly.saved_params["[n012: Water Temperature] n012_pool.GV1"], "spike, stuck")
         self.assertNotIn("${sys.node.n012_pool.GV1}", poly.saved_params)
 
         # Assert tasks were created in SQLite
@@ -150,7 +150,7 @@ class TestCustomParamsMonitor(unittest.TestCase):
         self.assertIn("active_monitors_summary", poly.notices)
         self.assertIn("Water Temperature", poly.notices["active_monitors_summary"])
 
-        # 3. Test composite 3-level [Parent Node - Device Node - Parameter Name] formatting
+        # 3. Test composite 3-level [Node: Parent Node - Device Node - Parameter Name] formatting
         database.upsert_static_metadata(
             "n015_dryer",
             "GV1",
@@ -162,22 +162,22 @@ class TestCustomParamsMonitor(unittest.TestCase):
         ctrl._sync_custom_params_monitors({
             "${sys.node.n015_dryer.GV1}": "spike",
         })
-        self.assertIn("[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
-        self.assertEqual(poly.saved_params["[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1"], "spike")
+        self.assertIn("[n015: SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
+        self.assertEqual(poly.saved_params["[n015: SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1"], "spike")
 
         # 4. Optionality: User can provide raw key without bracket label and it auto-canonicalizes to 3 levels
         ctrl._sync_custom_params_monitors({
             "n015_dryer.GV1": "stuck",
         })
-        self.assertIn("[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
+        self.assertIn("[n015: SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
 
         # 5. User-supplied custom 3-level label:
-        # If supplied as non-canonical (legacy trailing bracket), it rewrites to leading bracket preserving the 3 levels
+        # If supplied as non-canonical (legacy trailing bracket), it rewrites to leading bracket preserving the 3 levels with node prefix
         ctrl._sync_custom_params_monitors({
             "n015_dryer.GV1 [Main Panel - Laundry - Dryer]": "spike, stuck",
         })
-        self.assertIn("[Main Panel - Laundry - Dryer] n015_dryer.GV1", poly.saved_params)
-        self.assertEqual(poly.saved_params["[Main Panel - Laundry - Dryer] n015_dryer.GV1"], "spike, stuck")
+        self.assertIn("[n015: Main Panel - Laundry - Dryer] n015_dryer.GV1", poly.saved_params)
+        self.assertEqual(poly.saved_params["[n015: Main Panel - Laundry - Dryer] n015_dryer.GV1"], "spike, stuck")
         tasks = database.load_active_monitor_tasks()
         dryer_tasks = [t for t in tasks if t.get("node_id_pattern") == "n015_dryer"]
         self.assertTrue(len(dryer_tasks) > 0)
@@ -190,7 +190,7 @@ class TestCustomParamsMonitor(unittest.TestCase):
         ctrl._sync_custom_params_monitors({
             "n012_heater.GV1": "spike",
         })
-        self.assertIn("[Pool Heater - Target Temp] n012_heater.GV1", poly.saved_params)
+        self.assertIn("[n012: Pool Heater - Target Temp] n012_heater.GV1", poly.saved_params)
 
         # 7. Test 1-level [Device Node] when control has no parameter name (or raw code ST)
         database.upsert_static_metadata(
@@ -199,7 +199,21 @@ class TestCustomParamsMonitor(unittest.TestCase):
         ctrl._sync_custom_params_monitors({
             "n012_pump.ST": "stuck",
         })
-        self.assertIn("[Pool Pump] n012_pump.ST", poly.saved_params)
+        self.assertIn("[n012: Pool Pump] n012_pump.ST", poly.saved_params)
+
+        # 8. User specific case: existing custom key without node number prefix upgrades seamlessly
+        ctrl._sync_custom_params_monitors({
+            "[SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST": "spike, stuck",
+        })
+        self.assertIn("[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST", poly.saved_params)
+        self.assertNotIn("[SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST", poly.saved_params)
+
+        # 9. Deduplication check: key already having node prefix is not duplicated
+        ctrl._sync_custom_params_monitors({
+            "[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST": "spike, stuck",
+        })
+        self.assertIn("[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST", poly.saved_params)
+        self.assertNotIn("[n012: n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST", poly.saved_params)
 
     def test_sync_custom_params_help_mode(self):
         database.upsert_static_metadata("n012_pool", "GV2", name="Filter Pressure", uom_label="PSI")
@@ -227,8 +241,8 @@ class TestCustomParamsMonitor(unittest.TestCase):
         })
 
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("[Filter Pressure] n012_pool.GV2", poly.saved_params)
-        val = poly.saved_params["[Filter Pressure] n012_pool.GV2"]
+        self.assertIn("[n012: Filter Pressure] n012_pool.GV2", poly.saved_params)
+        val = poly.saved_params["[n012: Filter Pressure] n012_pool.GV2"]
         self.assertIn("spike, stuck", val)
         self.assertIn("Options:", val)
 
@@ -305,8 +319,8 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
         all_cands = database.discover_candidate_monitors()
         cand_keys = {c["canonical_key"] for c in all_cands}
-        self.assertIn("[Rachio Hub - Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", cand_keys)
-        self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", cand_keys)
+        self.assertIn("[n001: Rachio Hub - Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", cand_keys)
+        self.assertIn("[n002: Kitchen Fridge] n002_fridge.TEMP", cand_keys)
         self.assertNotIn("n003_switch.ST", str(cand_keys))
 
         # Test category filter
@@ -317,8 +331,8 @@ class TestCustomParamsMonitor(unittest.TestCase):
         # Test exclude existing
         excluded = database.discover_candidate_monitors(exclude_node_controls={("n001_irr", "FLOW")})
         excl_keys = {c["canonical_key"] for c in excluded}
-        self.assertNotIn("[Rachio Hub - Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", excl_keys)
-        self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", excl_keys)
+        self.assertNotIn("[n001: Rachio Hub - Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", excl_keys)
+        self.assertIn("[n002: Kitchen Fridge] n002_fridge.TEMP", excl_keys)
 
     def test_auto_populate_custom_params_workflow_and_pruning(self):
         database.upsert_static_metadata("n001_irr", "FLOW", name="Lawn Sprinklers", uom=36, uom_label="GPM")
@@ -351,10 +365,10 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
         # 1. Verify customParams were auto-populated
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("[Lawn Sprinklers] n001_irr.FLOW", poly.saved_params)
-        self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", poly.saved_params)
-        self.assertEqual(poly.saved_params["[Lawn Sprinklers] n001_irr.FLOW"], "spike, creep, stuck")
-        self.assertEqual(poly.saved_params["[Kitchen Fridge] n002_fridge.TEMP"], "spike, stuck, hourly")
+        self.assertIn("[n001: Lawn Sprinklers] n001_irr.FLOW", poly.saved_params)
+        self.assertIn("[n002: Kitchen Fridge] n002_fridge.TEMP", poly.saved_params)
+        self.assertEqual(poly.saved_params["[n001: Lawn Sprinklers] n001_irr.FLOW"], "spike, creep, stuck")
+        self.assertEqual(poly.saved_params["[n002: Kitchen Fridge] n002_fridge.TEMP"], "spike, stuck, hourly")
         self.assertTrue(poly.saved_params["auto_populate"].startswith("completed"))
 
         # 2. Verify tasks were created in database
@@ -365,7 +379,7 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
         # 3. Simulate user erasing the fridge row in PG3x and saving
         erased_params = dict(poly.saved_params)
-        del erased_params["[Kitchen Fridge] n002_fridge.TEMP"]
+        del erased_params["[n002: Kitchen Fridge] n002_fridge.TEMP"]
 
         ctrl._sync_custom_params_monitors(erased_params)
 
@@ -400,7 +414,7 @@ class TestCustomParamsMonitor(unittest.TestCase):
         ctrl._check_cold_start_auto_populate()
 
         self.assertIsNotNone(poly.saved_params)
-        self.assertIn("[Lawn Sprinklers] n001_irr.FLOW", poly.saved_params)
+        self.assertIn("[n001: Lawn Sprinklers] n001_irr.FLOW", poly.saved_params)
         self.assertTrue(poly.saved_params["auto_populate"].startswith("completed"))
 
     def test_custom_params_persistence_and_pg3_send(self):
@@ -435,6 +449,55 @@ class TestCustomParamsMonitor(unittest.TestCase):
         self.assertIn("set", msg)
         self.assertEqual(msg["set"][0]["key"], "customparams")
         self.assertEqual(msg["set"][0]["value"]["n001.GV1"], "spike")
+
+    def test_extract_node_number_and_canonical_formatting(self):
+        # 1. extract_node_number tests
+        self.assertEqual(database.extract_node_number("n012_8b4c01000cac1a"), "n012")
+        self.assertEqual(database.extract_node_number("n015_dryer"), "n015")
+        self.assertEqual(database.extract_node_number("n001"), "n001")
+        self.assertEqual(database.extract_node_number("ZW004_1"), "ZW004")
+        self.assertEqual(database.extract_node_number("zb002_sensor"), "ZB002")
+        self.assertEqual(database.extract_node_number("node_1"), "node_1")
+        self.assertIsNone(database.extract_node_number("unknown_device"))
+        self.assertIsNone(database.extract_node_number(None))
+        self.assertIsNone(database.extract_node_number(""))
+
+        # 2. build_friendly_label with node_id
+        lbl = database.build_friendly_label(
+            node_name="SY Waterfall Right Flug",
+            param_name="Watt",
+            node_id="n012_8b4c01000cac1a",
+        )
+        self.assertEqual(lbl, "n012: SY Waterfall Right Flug - Watt")
+
+        # 3. format_canonical_param_key upgrades user's exact example
+        k1 = database.format_canonical_param_key(
+            "n012_8b4c01000cac1a", "ST", "SY Waterfall Right Flug - Watt"
+        )
+        self.assertEqual(k1, "[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST")
+
+        # 4. Leading bracket without prefix
+        k2 = database.format_canonical_param_key(
+            "n012_8b4c01000cac1a", "ST", "[SY Waterfall Right Flug - Watt]"
+        )
+        self.assertEqual(k2, "[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST")
+
+        # 5. Already prefixed - no duplication
+        k3 = database.format_canonical_param_key(
+            "n012_8b4c01000cac1a", "ST", "[n012: SY Waterfall Right Flug - Watt]"
+        )
+        self.assertEqual(k3, "[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST")
+
+        # 6. Leading hyphen/space prefix stripped before inserting colon
+        k4 = database.format_canonical_param_key(
+            "n012_8b4c01000cac1a", "ST", "n012 - SY Waterfall Right Flug - Watt"
+        )
+        self.assertEqual(k4, "[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST")
+
+        # 7. Bare key without label
+        k5 = database.format_canonical_param_key("n012_8b4c01000cac1a", "ST", None)
+        self.assertEqual(k5, "n012_8b4c01000cac1a.ST")
+
 
 if __name__ == "__main__":
     unittest.main()

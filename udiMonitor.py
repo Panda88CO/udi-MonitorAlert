@@ -163,7 +163,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.3")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.4")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -1414,6 +1414,7 @@ class Controller(Node):
                     param_name=param_name,
                     parent_node_name=parent_node_name,
                     control=control,
+                    node_id=node_id,
                 ) or existing_label
 
             # Build canonical labeled key: e.g. "[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1"

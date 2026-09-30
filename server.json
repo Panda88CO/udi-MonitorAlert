@@ -3,7 +3,7 @@
     {
       "title": "udi-MonitorAlert",
       "author": "Panda88CO",
-      "version": "0.2.3",
+      "version": "0.2.4",
       "date": "2026-09-25",
       "source": "https://github.com/Panda88CO/udi-MonitorAlert"
     }
@@ -15,8 +15,8 @@
   "install": "install.sh",
   "shortPoll": 30,
   "longPoll": 180,
-  "profile_version": "0.2.3",
-  "version": "0.2.3",
+  "profile_version": "0.2.4",
+  "version": "0.2.4",
   "customParams": {
     "isy_ip": "192.168.1.240",
     "isy_user": "admin",

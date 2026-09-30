@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fnmatch
 import importlib
+import re
 import sqlite3
 import logging
 import json
@@ -2062,15 +2063,40 @@ def prune_events_dual_retention(
     }
 
 
+def extract_node_number(node_id: str | None) -> str | None:
+    """Extract node number/slot prefix from a node address.
+
+    e.g. 'n012_8b4c01000cac1a' -> 'n012'
+         'n015_dryer'           -> 'n015'
+         'n001'                 -> 'n001'
+         'ZW004_1'              -> 'ZW004'
+    """
+    if not node_id:
+        return None
+    node_str = str(node_id).strip()
+    m = re.match(r"^(n\d+)", node_str, re.IGNORECASE)
+    if m:
+        return m.group(1).lower()
+    m2 = re.match(r"^(node[_-]?\d+)", node_str, re.IGNORECASE)
+    if m2:
+        return m2.group(1)
+    m3 = re.match(r"^(zw\d+|zb\d+)", node_str, re.IGNORECASE)
+    if m3:
+        return m3.group(1).upper()
+    return None
+
+
 def build_friendly_label(
     node_name: str | None = None,
     param_name: str | None = None,
     parent_node_name: str | None = None,
     control: str | None = None,
+    node_id: str | None = None,
 ) -> str | None:
     """Build a composite friendly label with up to 3 levels:
-    [Parent Node - Device Node - Parameter Name]
-    e.g. 'SPAN 192.168.1.76 - Dryer - Energy last hour'
+    [Node Number: Parent Node - Device Node - Parameter Name]
+    e.g. 'n012: SY Waterfall Right Flug - Watt'
+         'n015: SPAN 192.168.1.76 - Dryer - Energy last hour'
     """
     p_clean = str(parent_node_name or "").strip()
     n_clean = str(node_name or "").strip()
@@ -2119,15 +2145,19 @@ def build_friendly_label(
 
     # Assemble non-empty components in hierarchical order: Parent -> Node -> Parameter
     levels = [part for part in (p_clean, n_clean, param_clean) if part]
-    if levels:
-        return " - ".join(levels)
-    elif n_clean:
-        return n_clean
-    elif p_clean:
-        return p_clean
-    elif param_clean:
-        return param_clean
-    return None
+    res = " - ".join(levels) if levels else None
+
+    # Prefix node number if node_id is provided and not already present
+    if res and node_id:
+        node_num = extract_node_number(node_id)
+        if node_num and not re.match(r"^[a-zA-Z0-9_-]+:\s*", res):
+            if res.lower().startswith(f"{node_num.lower()} - "):
+                res = res[len(node_num) + 3:].strip()
+            elif res.lower().startswith(f"{node_num.lower()} "):
+                res = res[len(node_num) + 1:].strip()
+            res = f"{node_num}: {res}"
+
+    return res
 
 
 def format_canonical_param_key(
@@ -2137,7 +2167,8 @@ def format_canonical_param_key(
 ) -> str:
     """Format canonical customParams key with optional leading bracketed label.
 
-    e.g. '[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1'
+    e.g. '[n012: SY Waterfall Right Flug - Watt] n012_8b4c01000cac1a.ST'
+         '[n015: SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1'
     """
     node_clean = str(node_id or "").strip()
     ctrl_clean = str(control or "").strip()
@@ -2146,6 +2177,13 @@ def format_canonical_param_key(
         lbl_clean = lbl_clean[1:-1].strip()
 
     if lbl_clean:
+        node_num = extract_node_number(node_clean)
+        if node_num and not re.match(r"^[a-zA-Z0-9_-]+:\s*", lbl_clean):
+            if lbl_clean.lower().startswith(f"{node_num.lower()} - "):
+                lbl_clean = lbl_clean[len(node_num) + 3:].strip()
+            elif lbl_clean.lower().startswith(f"{node_num.lower()} "):
+                lbl_clean = lbl_clean[len(node_num) + 1:].strip()
+            lbl_clean = f"{node_num}: {lbl_clean}"
         return f"[{lbl_clean}] {node_clean}.{ctrl_clean}"
     return f"{node_clean}.{ctrl_clean}"
 
@@ -2216,6 +2254,7 @@ def discover_candidate_monitors(
             param_name=friendly_param,
             parent_node_name=parent_node_name,
             control=control,
+            node_id=node_id,
         )
         canonical_key = format_canonical_param_key(node_id, control, label)
 
