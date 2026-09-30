@@ -78,6 +78,8 @@ def _ensure_node_control_static_schema(cursor: sqlite3.Cursor):
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN allowed_subset_id INTEGER")
     if "node_name" not in columns:
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN node_name TEXT")
+    if "parent_node_name" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN parent_node_name TEXT")
 
 
 def _ensure_allowed_subset_lookup_schema(cursor: sqlite3.Cursor):
@@ -286,6 +288,7 @@ def init_db():
             control TEXT NOT NULL,
             name TEXT,
             node_name TEXT,
+            parent_node_name TEXT,
             action TEXT,
             uom INTEGER,
             enum_map_json TEXT,
@@ -456,6 +459,7 @@ def upsert_static_metadata(
     allowed_subset: list[str] | None = None,
     enum_map: dict[str, str] | None = None,
     node_name: str | None = None,
+    parent_node_name: str | None = None,
 ):
     if not node_id or not control:
         return
@@ -474,6 +478,7 @@ def upsert_static_metadata(
             control,
             name,
             node_name,
+            parent_node_name,
             action,
             uom,
             enum_map_json,
@@ -492,11 +497,12 @@ def upsert_static_metadata(
             allowed_subset_json,
             allowed_subset_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id, control)
         DO UPDATE SET
             name = COALESCE(excluded.name, node_control_static.name),
             node_name = COALESCE(excluded.node_name, node_control_static.node_name),
+            parent_node_name = COALESCE(excluded.parent_node_name, node_control_static.parent_node_name),
             action = COALESCE(excluded.action, node_control_static.action),
             uom = COALESCE(excluded.uom, node_control_static.uom),
             enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
@@ -522,6 +528,7 @@ def upsert_static_metadata(
             control,
             name,
             node_name,
+            parent_node_name,
             action,
             uom,
             enum_map_json,
@@ -615,6 +622,7 @@ def bulk_upsert_static_metadata(
                     control,
                     name,
                     node_name,
+                    parent_node_name,
                     action,
                     uom,
                     enum_map_json,
@@ -633,11 +641,12 @@ def bulk_upsert_static_metadata(
                     allowed_subset_json,
                     allowed_subset_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(node_id, control)
                 DO UPDATE SET
                     name = COALESCE(excluded.name, node_control_static.name),
                     node_name = COALESCE(excluded.node_name, node_control_static.node_name),
+                    parent_node_name = COALESCE(excluded.parent_node_name, node_control_static.parent_node_name),
                     action = COALESCE(excluded.action, node_control_static.action),
                     uom = COALESCE(excluded.uom, node_control_static.uom),
                     enum_map_json = COALESCE(excluded.enum_map_json, node_control_static.enum_map_json),
@@ -663,6 +672,7 @@ def bulk_upsert_static_metadata(
                     control,
                     rec.get("name"),
                     rec.get("node_name"),
+                    rec.get("parent_node_name"),
                     rec.get("action"),
                     uom,
                     enum_map_json,
@@ -736,7 +746,7 @@ def get_node_control_metadata(node_id: str, control: str) -> dict[str, Any] | No
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT node_id, control, name, node_name, action, uom, uom_label, min_value, max_value, enum_map_json
+        SELECT node_id, control, name, node_name, parent_node_name, action, uom, uom_label, min_value, max_value, enum_map_json
         FROM node_control_static
         WHERE node_id = ? AND control = ?
         """,
@@ -754,7 +764,7 @@ def get_node_all_controls(node_id: str) -> list[dict[str, Any]]:
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT node_id, control, name, node_name, action, uom, uom_label
+        SELECT node_id, control, name, node_name, parent_node_name, action, uom, uom_label
         FROM node_control_static
         WHERE node_id = ?
         ORDER BY control ASC
@@ -1856,29 +1866,70 @@ def prune_events_dual_retention(
 
 
 def build_friendly_label(
-    node_name: str | None,
-    param_name: str | None,
+    node_name: str | None = None,
+    param_name: str | None = None,
+    parent_node_name: str | None = None,
     control: str | None = None,
 ) -> str | None:
-    """Build a composite friendly label like 'SPAN 192.168.1.76 - Dryer - Energy last hour'."""
+    """Build a composite friendly label with up to 3 levels:
+    [Parent Node - Device Node - Parameter Name]
+    e.g. 'SPAN 192.168.1.76 - Dryer - Energy last hour'
+    """
+    p_clean = str(parent_node_name or "").strip()
     n_clean = str(node_name or "").strip()
-    p_clean = str(param_name or "").strip()
+    param_clean = str(param_name or "").strip()
     c_clean = str(control or "").strip()
 
     # Avoid using raw control code as friendly param name (e.g. if name is literally "GV1" or "ST")
-    if p_clean and c_clean and p_clean.upper() == c_clean.upper():
-        p_clean = ""
+    if param_clean and c_clean and param_clean.upper() == c_clean.upper():
+        param_clean = ""
+    elif param_clean and param_clean.upper() in {
+        "GV0", "GV1", "GV2", "GV3", "GV4", "GV5", "GV6", "GV7", "GV8", "GV9",
+        "GV10", "GV11", "GV12", "GV13", "GV14", "GV15", "GV16", "GV17", "GV18",
+        "GV19", "GV20", "GV21", "GV22", "GV23", "GV24", "GV25", "GV26", "GV27",
+        "GV28", "GV29", "GV30", "ST", "ALARM"
+    }:
+        param_clean = ""
 
-    if n_clean and p_clean:
-        if p_clean.lower().startswith(n_clean.lower()):
-            return p_clean
-        return f"{n_clean} - {p_clean}"
+    # Deduplicate Parent (Level 1) and Node (Level 2)
+    if p_clean and n_clean:
+        if p_clean.lower() == n_clean.lower():
+            p_clean = ""
+        elif n_clean.lower().startswith(p_clean.lower() + " - "):
+            n_clean = n_clean[len(p_clean) + 3:].strip()
+        elif n_clean.lower().startswith(p_clean.lower() + " "):
+            p_clean = ""
+        elif p_clean.lower().startswith(n_clean.lower() + " "):
+            n_clean = ""
+
+    # Deduplicate Node (Level 2) and Parameter (Level 3)
+    if n_clean and param_clean:
+        if n_clean.lower() == param_clean.lower():
+            param_clean = ""
+        elif param_clean.lower().startswith(n_clean.lower() + " - "):
+            param_clean = param_clean[len(n_clean) + 3:].strip()
+        elif param_clean.lower().startswith(n_clean.lower() + " "):
+            param_clean = param_clean[len(n_clean) + 1:].strip()
+
+    # Deduplicate Parent (Level 1) and Parameter (Level 3)
+    if p_clean and param_clean:
+        if p_clean.lower() == param_clean.lower():
+            param_clean = ""
+        elif param_clean.lower().startswith(p_clean.lower() + " - "):
+            param_clean = param_clean[len(p_clean) + 3:].strip()
+        elif param_clean.lower().startswith(p_clean.lower() + " "):
+            param_clean = param_clean[len(p_clean) + 1:].strip()
+
+    # Assemble non-empty components in hierarchical order: Parent -> Node -> Parameter
+    levels = [part for part in (p_clean, n_clean, param_clean) if part]
+    if levels:
+        return " - ".join(levels)
     elif n_clean:
-        if c_clean and c_clean.lower() != n_clean.lower():
-            return f"{n_clean} - {c_clean}"
         return n_clean
     elif p_clean:
         return p_clean
+    elif param_clean:
+        return param_clean
     return None
 
 
@@ -1922,7 +1973,7 @@ def discover_candidate_monitors(
 
     cursor.execute(
         """
-        SELECT node_id, control, name, node_name, uom, uom_label, min_value, max_value, is_timestamp_like
+        SELECT node_id, control, name, node_name, parent_node_name, uom, uom_label, min_value, max_value, is_timestamp_like
         FROM node_control_static
         ORDER BY node_id ASC, control ASC
         """
@@ -1940,6 +1991,7 @@ def discover_candidate_monitors(
             continue
 
         node_name = (row["node_name"] or "").strip() if "node_name" in row.keys() else ""
+        parent_node_name = (row["parent_node_name"] or "").strip() if "parent_node_name" in row.keys() else ""
         friendly_param = (row["name"] or "").strip()
 
         match = discovery_rules.classify_candidate(
@@ -1947,6 +1999,7 @@ def discover_candidate_monitors(
             control=control,
             name=row["name"],
             node_name=node_name or None,
+            parent_node_name=parent_node_name or None,
             uom=row["uom"],
             uom_label=row["uom_label"],
             min_value=row["min_value"],
@@ -1961,7 +2014,12 @@ def discover_candidate_monitors(
         if cat_filter and cat_name.lower() != cat_filter:
             continue
 
-        label = build_friendly_label(node_name=node_name, param_name=friendly_param, control=control)
+        label = build_friendly_label(
+            node_name=node_name,
+            param_name=friendly_param,
+            parent_node_name=parent_node_name,
+            control=control,
+        )
         canonical_key = format_canonical_param_key(node_id, control, label)
 
         candidates.append({
@@ -1969,6 +2027,7 @@ def discover_candidate_monitors(
             "control": control,
             "name": friendly_param or None,
             "node_name": node_name or None,
+            "parent_node_name": parent_node_name or None,
             "uom": row["uom"],
             "uom_label": row["uom_label"],
             "category": cat_name,

@@ -53,5 +53,28 @@ class TestParseRest(unittest.TestCase):
         self.assertIsNotNone(enum_map)
         self.assertEqual(enum_map, {"0": "Off", "1": "On"})
 
+    def test_resolve_control_name_from_nls(self):
+        nls_map = {
+            "ST-span_circuit-GV1-NAME": "Energy last hour",
+            "ST-nls_ml_ctrl-ALARM-NAME": "Anomaly Alert",
+            "ST-CLITEMP-NAME": "Current Temperature",
+            "BARPRES-NAME": "Relative Pressure",
+        }
+        # 1. Exact nodeDef / nls_id match
+        name = parse_rest.resolve_control_name_from_nls(nls_map, "GV1", node_def_id="SpanCircuit", nls_id="span_circuit")
+        self.assertEqual(name, "Energy last hour")
+
+        # 2. Suffix match when node_def_id is unknown
+        name_suffix = parse_rest.resolve_control_name_from_nls(nls_map, "GV1")
+        self.assertEqual(name_suffix, "Energy last hour")
+
+        # 3. Generic ST-<ctrl>-NAME match
+        name_gen = parse_rest.resolve_control_name_from_nls(nls_map, "CLITEMP")
+        self.assertEqual(name_gen, "Current Temperature")
+
+        # 4. Fallback <ctrl>-NAME match
+        name_bar = parse_rest.resolve_control_name_from_nls(nls_map, "BARPRES")
+        self.assertEqual(name_bar, "Relative Pressure")
+
 if __name__ == "__main__":
     unittest.main()

@@ -175,6 +175,7 @@ def classify_candidate(
     control: str,
     name: str | None = None,
     node_name: str | None = None,
+    parent_node_name: str | None = None,
     uom: int | None = None,
     uom_label: str | None = None,
     min_value: float | None = None,
@@ -191,6 +192,7 @@ def classify_candidate(
     ctrl_str = str(control or "").strip().upper()
     name_str = str(name or "").strip()
     node_name_str = str(node_name or "").strip()
+    parent_node_name_str = str(parent_node_name or "").strip()
     uom_int = int(uom) if uom is not None else None
 
     # Filter 1: Timestamps
@@ -212,7 +214,8 @@ def classify_candidate(
     name_lower = name_str.lower()
     ctrl_lower = ctrl_str.lower()
     node_name_lower = node_name_str.lower()
-    text_to_search = f"{node_name_lower} {name_lower} {ctrl_lower}".strip()
+    parent_node_name_lower = parent_node_name_str.lower()
+    text_to_search = f"{parent_node_name_lower} {node_name_lower} {name_lower} {ctrl_lower}".strip()
 
     for cat_def in active_categories:
         cat_name = cat_def.get("category", "custom")

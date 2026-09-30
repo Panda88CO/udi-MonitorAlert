@@ -270,7 +270,8 @@ def _load_profile_assets(rest_base_url, auth, slot):
             node_def_id = node_def.attrib.get("id")
             if not node_def_id:
                 continue
-            node_defs[node_def_id] = {"controls": {}}
+            nls_id = node_def.attrib.get("nls") or node_def_id
+            node_defs[node_def_id] = {"controls": {}, "nls": nls_id}
 
             for st in node_def.findall(".//sts/st"):
                 control = st.attrib.get("id")
@@ -460,6 +461,66 @@ def _build_uom25_enum_map(slot_assets, control):
     return enum_map
 
 
+def resolve_control_name_from_nls(
+    nls_map: dict[str, str] | None,
+    control: str,
+    node_def_id: str | None = None,
+    nls_id: str | None = None,
+) -> str | None:
+    """Resolve human-readable control name from profile NLS map.
+
+    Supports exact nodeDef/nls matches as well as generic suffix matches
+    (e.g. ST-span_circuit-GV1-NAME -> 'Energy last hour').
+    """
+    if not nls_map or not control:
+        return None
+    ctrl_upper = control.upper()
+
+    # 1. Exact matches with known nls_id or node_def_id
+    prefixes = []
+    if nls_id:
+        prefixes.append(nls_id)
+    if node_def_id and node_def_id != nls_id:
+        prefixes.append(node_def_id)
+
+    for prefix in prefixes:
+        candidates = [
+            f"ST-{prefix}-{control}-NAME",
+            f"ST-{prefix}-{ctrl_upper}-NAME",
+            f"IX-{prefix}-{control}-NAME",
+            f"IX-{prefix}-{ctrl_upper}-NAME",
+            f"{prefix}-{control}-NAME",
+            f"{prefix}-{ctrl_upper}-NAME",
+        ]
+        for c in candidates:
+            if c in nls_map:
+                return nls_map[c]
+
+    # 2. Generic control matches
+    generic_candidates = [
+        f"ST-{control}-NAME",
+        f"ST-{ctrl_upper}-NAME",
+        f"IX-{control}-NAME",
+        f"IX-{ctrl_upper}-NAME",
+        f"{control}-NAME",
+        f"{ctrl_upper}-NAME",
+        f"ST-{control}",
+        f"ST-{ctrl_upper}",
+    ]
+    for c in generic_candidates:
+        if c in nls_map:
+            return nls_map[c]
+
+    # 3. Fallback: Search all keys in nls_map ending with -{control}-NAME
+    # e.g. "ST-span_circuit-GV1-NAME" or "ST-nls_ml_ctrl-GV1-NAME"
+    suffix = f"-{ctrl_upper}-NAME"
+    for k, v in nls_map.items():
+        if k.upper().endswith(suffix):
+            return v
+
+    return None
+
+
 def build_control_metadata_records(rest_base_url, username, password, timeout=10):
     """Builds metadata records keyed by node/control from /rest/status and profile files.
 
@@ -471,16 +532,39 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
     if status_xml is None:
         return [], {"status_nodes": 0, "status_properties": 0, "slots_loaded": 0, "records": 0}
 
-    # Fetch user-assigned node names from /rest/nodes
+    # Fetch user-assigned node names, hierarchies, and definitions from /rest/nodes
     node_names = {}
+    node_primaries = {}
+    node_parents = {}
+    node_defs_map = {}
     try:
         nodes_xml = _fetch_xml_with_auth(f"{rest_base_url}/nodes", auth=auth, timeout=timeout)
         if nodes_xml is not None:
             for n in nodes_xml.findall(".//node"):
                 nid = n.findtext("address") or n.attrib.get("id") or n.attrib.get("flag")
+                if not nid:
+                    continue
+                nid_str = str(nid).strip()
                 nname = n.findtext("name") or n.attrib.get("name")
-                if nid and nname:
-                    node_names[str(nid).strip()] = str(nname).strip()
+                if nname:
+                    node_names[nid_str] = str(nname).strip()
+
+                primary = (
+                    n.findtext("primary")
+                    or n.attrib.get("primary")
+                    or n.findtext("pnode")
+                    or n.attrib.get("pnode")
+                )
+                if primary:
+                    node_primaries[nid_str] = str(primary).strip()
+
+                parent = n.findtext("parent") or n.attrib.get("parent")
+                if parent:
+                    node_parents[nid_str] = str(parent).strip()
+
+                ndef = n.findtext("nodeDefId") or n.attrib.get("nodeDefId")
+                if ndef:
+                    node_defs_map[nid_str] = str(ndef).strip()
     except Exception:
         pass
 
@@ -495,9 +579,43 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
             continue
         status_nodes += 1
 
-        node_name = node.attrib.get("name") or node.findtext("name") or node_names.get(str(node_id).strip())
+        node_id_str = str(node_id).strip()
+        node_name = node.attrib.get("name") or node.findtext("name") or node_names.get(node_id_str)
+
+        # Resolve parent/primary node name (Level 1 in 3-level naming)
+        primary_id = (
+            node.attrib.get("primary")
+            or node.findtext("primary")
+            or node.attrib.get("pnode")
+            or node.findtext("pnode")
+            or node_primaries.get(node_id_str)
+        )
+        parent_id = (
+            node.attrib.get("parent")
+            or node.findtext("parent")
+            or node_parents.get(node_id_str)
+        )
+
+        parent_node_name = None
+        if primary_id and str(primary_id).strip() != node_id_str:
+            parent_node_name = node_names.get(str(primary_id).strip())
+
+        if not parent_node_name and parent_id and str(parent_id).strip() != node_id_str:
+            parent_node_name = node_names.get(str(parent_id).strip())
 
         slot = node.attrib.get("profile") or _slot_from_node_id(node_id)
+        if not parent_node_name and slot:
+            try:
+                slot_int = int(slot)
+                for ctl_key in (f"n{slot_int:03d}_controller", f"n{slot_int:03d}_ctl", f"n{slot_int:02d}_controller"):
+                    if ctl_key in node_names and ctl_key != node_id_str:
+                        cand_name = node_names[ctl_key]
+                        if cand_name and cand_name != node_name:
+                            parent_node_name = cand_name
+                            break
+            except Exception:
+                pass
+
         slot_assets = None
         if slot:
             slot_assets = _load_profile_assets(rest_base_url, auth, slot)
@@ -519,10 +637,15 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
             param_name = prop.attrib.get("name") or prop.findtext("name")
             if not param_name and slot_assets:
                 nls_map = slot_assets.get("nls", {})
-                param_name = (
-                    nls_map.get(f"ST-{control}-NAME")
-                    or nls_map.get(f"IX-{control}-NAME")
-                    or nls_map.get(f"{control}-NAME")
+                node_def_id = node.attrib.get("nodeDefId") or node_defs_map.get(node_id_str)
+                nls_id = None
+                if node_def_id:
+                    nls_id = slot_assets.get("node_defs", {}).get(node_def_id, {}).get("nls")
+                param_name = resolve_control_name_from_nls(
+                    nls_map=nls_map,
+                    control=control,
+                    node_def_id=node_def_id,
+                    nls_id=nls_id,
                 )
 
             selected_candidate = _select_candidate(slot_assets, control, uom, value_str)
@@ -553,6 +676,7 @@ def build_control_metadata_records(rest_base_url, username, password, timeout=10
                 "control": str(control),
                 "name": str(param_name).strip() if param_name else None,
                 "node_name": str(node_name).strip() if node_name else None,
+                "parent_node_name": str(parent_node_name).strip() if parent_node_name else None,
                 "uom": uom,
                 "uom_label": UOM_LABELS.get(uom) if uom is not None else None,
                 "source": "status_profile" if slot else "status_internal",

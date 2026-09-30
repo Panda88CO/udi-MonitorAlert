@@ -163,7 +163,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.1")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.2")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -1368,15 +1368,18 @@ class Controller(Node):
             # Look up metadata in database for friendly name and node name
             meta = database.get_node_control_metadata(node_id, control)
             node_name = (meta.get("node_name") if meta else None)
+            parent_node_name = (meta.get("parent_node_name") if meta else None)
             param_name = (meta.get("name") if meta else None)
 
             # Preserve user-supplied leading label if already specified; otherwise build composite friendly label
-            if raw_key.strip().startswith("[") and existing_label:
+            has_leading_bracket = bool(re.search(r"\[.*?\]\s*(\$\{sys\.node\.)?[a-zA-Z0-9_]+", raw_key.strip()))
+            if existing_label and (has_leading_bracket or " - " in existing_label):
                 effective_label = existing_label
             else:
                 effective_label = database.build_friendly_label(
                     node_name=node_name,
                     param_name=param_name,
+                    parent_node_name=parent_node_name,
                     control=control,
                 ) or existing_label
 

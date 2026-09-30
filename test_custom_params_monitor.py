@@ -142,21 +142,56 @@ class TestCustomParamsMonitor(unittest.TestCase):
         self.assertIn("active_monitors_summary", poly.notices)
         self.assertIn("Water Temperature", poly.notices["active_monitors_summary"])
 
-        # 3. Test composite [Node Name - Parameter Name] formatting with node_name
+        # 3. Test composite 3-level [Parent Node - Device Node - Parameter Name] formatting
         database.upsert_static_metadata(
-            "n015_dryer", "GV1", name="Energy last hour", node_name="Dryer", uom_label="kWh"
+            "n015_dryer",
+            "GV1",
+            name="Energy last hour",
+            node_name="Dryer",
+            parent_node_name="SPAN 192.168.1.76",
+            uom_label="kWh",
         )
         ctrl._sync_custom_params_monitors({
             "${sys.node.n015_dryer.GV1}": "spike",
         })
-        self.assertIn("[Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
-        self.assertEqual(poly.saved_params["[Dryer - Energy last hour] n015_dryer.GV1"], "spike")
+        self.assertIn("[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
+        self.assertEqual(poly.saved_params["[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1"], "spike")
 
-        # 4. Optionality: User can provide raw key without bracket label and it parses without error
+        # 4. Optionality: User can provide raw key without bracket label and it auto-canonicalizes to 3 levels
         ctrl._sync_custom_params_monitors({
             "n015_dryer.GV1": "stuck",
         })
-        self.assertIn("[Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
+        self.assertIn("[SPAN 192.168.1.76 - Dryer - Energy last hour] n015_dryer.GV1", poly.saved_params)
+
+        # 5. User-supplied custom 3-level label:
+        # If supplied as non-canonical (legacy trailing bracket), it rewrites to leading bracket preserving the 3 levels
+        ctrl._sync_custom_params_monitors({
+            "n015_dryer.GV1 [Main Panel - Laundry - Dryer]": "spike, stuck",
+        })
+        self.assertIn("[Main Panel - Laundry - Dryer] n015_dryer.GV1", poly.saved_params)
+        self.assertEqual(poly.saved_params["[Main Panel - Laundry - Dryer] n015_dryer.GV1"], "spike, stuck")
+        tasks = database.load_active_monitor_tasks()
+        dryer_tasks = [t for t in tasks if t.get("node_id_pattern") == "n015_dryer"]
+        self.assertTrue(len(dryer_tasks) > 0)
+        self.assertTrue(all("Main Panel - Laundry - Dryer" in t.get("name", "") for t in dryer_tasks))
+
+        # 6. Test 2-level [Device Node - Parameter Name] when no parent exists
+        database.upsert_static_metadata(
+            "n012_heater", "GV1", name="Target Temp", node_name="Pool Heater", uom_label="°F"
+        )
+        ctrl._sync_custom_params_monitors({
+            "n012_heater.GV1": "spike",
+        })
+        self.assertIn("[Pool Heater - Target Temp] n012_heater.GV1", poly.saved_params)
+
+        # 7. Test 1-level [Device Node] when control has no parameter name (or raw code ST)
+        database.upsert_static_metadata(
+            "n012_pump", "ST", node_name="Pool Pump"
+        )
+        ctrl._sync_custom_params_monitors({
+            "n012_pump.ST": "stuck",
+        })
+        self.assertIn("[Pool Pump] n012_pump.ST", poly.saved_params)
 
     def test_sync_custom_params_help_mode(self):
         database.upsert_static_metadata("n012_pool", "GV2", name="Filter Pressure", uom_label="PSI")
@@ -249,14 +284,20 @@ class TestCustomParamsMonitor(unittest.TestCase):
 
     def test_database_discover_candidate_monitors(self):
         database.upsert_static_metadata(
-            "n001_irr", "FLOW", name="Lawn Sprinklers", node_name="Yard Irrigation", uom=36, uom_label="GPM"
+            "n001_irr",
+            "FLOW",
+            name="Lawn Sprinklers",
+            node_name="Yard Irrigation",
+            parent_node_name="Rachio Hub",
+            uom=36,
+            uom_label="GPM",
         )
         database.upsert_static_metadata("n002_fridge", "TEMP", name="Kitchen Fridge", uom=17, uom_label="°F")
         database.upsert_static_metadata("n003_switch", "ST", name="Hall Light", min_value=0.0, max_value=100.0)
 
         all_cands = database.discover_candidate_monitors()
         cand_keys = {c["canonical_key"] for c in all_cands}
-        self.assertIn("[Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", cand_keys)
+        self.assertIn("[Rachio Hub - Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", cand_keys)
         self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", cand_keys)
         self.assertNotIn("n003_switch.ST", str(cand_keys))
 
@@ -268,7 +309,7 @@ class TestCustomParamsMonitor(unittest.TestCase):
         # Test exclude existing
         excluded = database.discover_candidate_monitors(exclude_node_controls={("n001_irr", "FLOW")})
         excl_keys = {c["canonical_key"] for c in excluded}
-        self.assertNotIn("[Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", excl_keys)
+        self.assertNotIn("[Rachio Hub - Yard Irrigation - Lawn Sprinklers] n001_irr.FLOW", excl_keys)
         self.assertIn("[Kitchen Fridge] n002_fridge.TEMP", excl_keys)
 
     def test_auto_populate_custom_params_workflow_and_pruning(self):
