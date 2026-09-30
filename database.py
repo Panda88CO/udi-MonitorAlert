@@ -80,6 +80,12 @@ def _ensure_node_control_static_schema(cursor: sqlite3.Cursor):
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN node_name TEXT")
     if "parent_node_name" not in columns:
         cursor.execute("ALTER TABLE node_control_static ADD COLUMN parent_node_name TEXT")
+    if "last_changed_ms" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN last_changed_ms INTEGER")
+    if "last_value" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN last_value REAL")
+    if "unchanged_count" not in columns:
+        cursor.execute("ALTER TABLE node_control_static ADD COLUMN unchanged_count INTEGER NOT NULL DEFAULT 0")
 
 
 def _ensure_allowed_subset_lookup_schema(cursor: sqlite3.Cursor):
@@ -209,6 +215,9 @@ def _to_control_meta(row: sqlite3.Row) -> dict[str, Any]:
         "first_seen_ms": row["first_seen_ms"],
         "last_seen_ms": row["last_seen_ms"],
         "refreshed_at_ms": row["refreshed_at_ms"],
+        "last_changed_ms": row["last_changed_ms"] if "last_changed_ms" in row.keys() else None,
+        "last_value": row["last_value"] if "last_value" in row.keys() else None,
+        "unchanged_count": row["unchanged_count"] if "unchanged_count" in row.keys() else 0,
     }
 
 
@@ -305,6 +314,9 @@ def init_db():
             min_value REAL,
             max_value REAL,
             allowed_subset_json TEXT,
+            last_changed_ms INTEGER,
+            last_value REAL,
+            unchanged_count INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (node_id, control)
         )
         """
@@ -460,12 +472,14 @@ def upsert_static_metadata(
     enum_map: dict[str, str] | None = None,
     node_name: str | None = None,
     parent_node_name: str | None = None,
+    value: float | int | None = None,
 ):
     if not node_id or not control:
         return
 
     seen_ms = event_time_ms if event_time_ms is not None else _now_ms()
     is_timestamp_like, storage_policy, policy_reason = _derive_storage_policy(_coerce_int(uom))
+    value_num = _coerce_float(value)
 
     conn = _connect()
     cursor = conn.cursor()
@@ -495,9 +509,12 @@ def upsert_static_metadata(
             min_value,
             max_value,
             allowed_subset_json,
-            allowed_subset_id
+            allowed_subset_id,
+            last_changed_ms,
+            last_value,
+            unchanged_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(node_id, control)
         DO UPDATE SET
             name = COALESCE(excluded.name, node_control_static.name),
@@ -521,7 +538,24 @@ def upsert_static_metadata(
                 WHEN excluded.last_seen_ms > node_control_static.last_seen_ms THEN excluded.last_seen_ms
                 ELSE node_control_static.last_seen_ms
             END,
-            refreshed_at_ms = excluded.refreshed_at_ms
+            refreshed_at_ms = excluded.refreshed_at_ms,
+            last_value = CASE
+                WHEN excluded.last_value IS NOT NULL THEN excluded.last_value
+                ELSE node_control_static.last_value
+            END,
+            last_changed_ms = CASE
+                WHEN excluded.last_value IS NULL THEN node_control_static.last_changed_ms
+                WHEN node_control_static.last_value IS NULL THEN excluded.last_seen_ms
+                WHEN ABS(excluded.last_value - node_control_static.last_value) > 1e-6 THEN excluded.last_seen_ms
+                ELSE COALESCE(node_control_static.last_changed_ms, node_control_static.first_seen_ms)
+            END,
+            unchanged_count = CASE
+                WHEN excluded.last_value IS NULL THEN node_control_static.unchanged_count
+                WHEN node_control_static.last_value IS NULL THEN 0
+                WHEN ABS(excluded.last_value - node_control_static.last_value) > 1e-6 THEN 0
+                WHEN excluded.last_seen_ms > node_control_static.last_seen_ms THEN node_control_static.unchanged_count + 1
+                ELSE node_control_static.unchanged_count
+            END
         """,
         (
             node_id,
@@ -546,6 +580,9 @@ def upsert_static_metadata(
             max_value,
             allowed_subset_json,
             allowed_subset_id,
+            seen_ms if value_num is not None else None,
+            value_num,
+            0,
         ),
     )
 
@@ -570,7 +607,10 @@ def upsert_static_metadata(
             ncs.policy_reason,
             ncs.first_seen_ms,
             ncs.last_seen_ms,
-            ncs.refreshed_at_ms
+            ncs.refreshed_at_ms,
+            ncs.last_changed_ms,
+            ncs.last_value,
+            ncs.unchanged_count
         FROM node_control_static ncs
         LEFT JOIN allowed_subset_lookup asl ON asl.id = ncs.allowed_subset_id
         WHERE ncs.node_id = ? AND ncs.control = ?
@@ -639,9 +679,12 @@ def bulk_upsert_static_metadata(
                     min_value,
                     max_value,
                     allowed_subset_json,
-                    allowed_subset_id
+                    allowed_subset_id,
+                    last_changed_ms,
+                    last_value,
+                    unchanged_count
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(node_id, control)
                 DO UPDATE SET
                     name = COALESCE(excluded.name, node_control_static.name),
@@ -665,7 +708,24 @@ def bulk_upsert_static_metadata(
                         WHEN excluded.last_seen_ms > node_control_static.last_seen_ms THEN excluded.last_seen_ms
                         ELSE node_control_static.last_seen_ms
                     END,
-                    refreshed_at_ms = excluded.refreshed_at_ms
+                    refreshed_at_ms = excluded.refreshed_at_ms,
+                    last_value = CASE
+                        WHEN excluded.last_value IS NOT NULL THEN excluded.last_value
+                        ELSE node_control_static.last_value
+                    END,
+                    last_changed_ms = CASE
+                        WHEN excluded.last_value IS NULL THEN node_control_static.last_changed_ms
+                        WHEN node_control_static.last_value IS NULL THEN excluded.last_seen_ms
+                        WHEN ABS(excluded.last_value - node_control_static.last_value) > 1e-6 THEN excluded.last_seen_ms
+                        ELSE COALESCE(node_control_static.last_changed_ms, node_control_static.first_seen_ms)
+                    END,
+                    unchanged_count = CASE
+                        WHEN excluded.last_value IS NULL THEN node_control_static.unchanged_count
+                        WHEN node_control_static.last_value IS NULL THEN 0
+                        WHEN ABS(excluded.last_value - node_control_static.last_value) > 1e-6 THEN 0
+                        WHEN excluded.last_seen_ms > node_control_static.last_seen_ms THEN node_control_static.unchanged_count + 1
+                        ELSE node_control_static.unchanged_count
+                    END
                 """,
                 (
                     node_id,
@@ -690,6 +750,9 @@ def bulk_upsert_static_metadata(
                     rec.get("max_value"),
                     allowed_subset_json,
                     allowed_subset_id,
+                    seen_ms if _coerce_float(rec.get("value")) is not None else None,
+                    _coerce_float(rec.get("value")),
+                    0,
                 ),
             )
 
@@ -812,6 +875,13 @@ def insert_dynamic_event(
     )
     conn.commit()
     conn.close()
+
+    upsert_static_metadata(
+        node_id=str(node_id),
+        control=str(control),
+        event_time_ms=event_ms,
+        value=value_num,
+    )
 
 
 def load_active_filters() -> list[dict[str, Any]]:
@@ -1769,6 +1839,133 @@ def check_slow_creep_query(
             "window_end_ms": window_end_ms,
         }
     return None
+
+
+def check_static_data_query(
+    node_pattern: str = "*",
+    control_pattern: str = "*",
+    max_stagnant_ms: int = 7200000,
+    min_updates: int = 3,
+    max_silent_ms: int | None = None,
+    ignore_zero: bool = False,
+    now_ms: int | None = None,
+) -> list[dict[str, Any]]:
+    """Scan database for node controls that continue to receive updates but whose value remains unchanged/frozen.
+
+    Returns a list of matching records with details on stagnant minutes and update counts.
+    """
+    current_ms = now_ms if now_ms is not None else _now_ms()
+    effective_max_silent_ms = max_silent_ms if max_silent_ms is not None else max(7200000, max_stagnant_ms * 2)
+
+    conn = _connect()
+    cursor = conn.cursor()
+
+    # 1. Query node_control_static
+    cursor.execute(
+        """
+        SELECT
+            node_id,
+            control,
+            COALESCE(name, control) AS name,
+            last_seen_ms,
+            last_changed_ms,
+            last_value,
+            unchanged_count,
+            (? - last_seen_ms) AS silent_ms,
+            (last_seen_ms - last_changed_ms) AS stagnant_ms
+        FROM node_control_static
+        WHERE last_changed_ms IS NOT NULL
+          AND last_seen_ms IS NOT NULL
+          AND unchanged_count >= ?
+          AND (last_seen_ms - last_changed_ms) >= ?
+          AND (? - last_seen_ms) <= ?
+        ORDER BY stagnant_ms DESC
+        """,
+        (current_ms, min_updates, max_stagnant_ms, current_ms, effective_max_silent_ms),
+    )
+    rows_static = [dict(r) for r in cursor.fetchall()]
+
+    # 2. Query events_dynamic for sequence of identical events
+    window_cutoff_ms = current_ms - max(max_stagnant_ms * 4, 86400000)
+    cursor.execute(
+        """
+        SELECT
+            e.node_id,
+            e.control,
+            COALESCE(s.name, e.control) AS name,
+            COUNT(*) AS update_count,
+            MIN(e.value) AS last_value,
+            MIN(e.value) AS min_val,
+            MAX(e.value) AS max_val,
+            MIN(e.event_time_ms) AS min_time_ms,
+            MAX(e.event_time_ms) AS max_time_ms
+        FROM events_dynamic e
+        LEFT JOIN node_control_static s ON e.node_id = s.node_id AND e.control = s.control
+        WHERE e.event_time_ms >= ? AND e.event_time_ms <= ?
+        GROUP BY e.node_id, e.control
+        HAVING COUNT(*) >= ?
+           AND (MAX(e.event_time_ms) - MIN(e.event_time_ms)) >= ?
+           AND ABS(MAX(e.value) - MIN(e.value)) <= 1e-6
+        """,
+        (window_cutoff_ms, current_ms, min_updates, max_stagnant_ms),
+    )
+    rows_dynamic = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+
+    results: dict[tuple[str, str], dict[str, Any]] = {}
+
+    for r in rows_static:
+        nid = str(r["node_id"])
+        ctrl = str(r["control"])
+        if not _match_pattern(nid, node_pattern) or not _match_pattern(ctrl, control_pattern):
+            continue
+        val = r.get("last_value")
+        if ignore_zero and val is not None and abs(float(val)) < 1e-6:
+            continue
+        stagnant_ms = max(0, int(r.get("stagnant_ms") or 0))
+        results[(nid, ctrl)] = {
+            "node_id": nid,
+            "control": ctrl,
+            "name": r.get("name") or ctrl,
+            "value": val,
+            "stagnant_minutes": round(stagnant_ms / 60000.0, 1),
+            "update_count": int(r.get("unchanged_count") or 0),
+            "last_seen_ms": r.get("last_seen_ms"),
+            "last_changed_ms": r.get("last_changed_ms"),
+        }
+
+    for r in rows_dynamic:
+        nid = str(r["node_id"])
+        ctrl = str(r["control"])
+        if not _match_pattern(nid, node_pattern) or not _match_pattern(ctrl, control_pattern):
+            continue
+        val = r.get("last_value")
+        if ignore_zero and val is not None and abs(float(val)) < 1e-6:
+            continue
+
+        max_t = int(r.get("max_time_ms") or 0)
+        min_t = int(r.get("min_time_ms") or 0)
+        silent_ms = current_ms - max_t
+        if silent_ms > effective_max_silent_ms:
+            continue  # Silent device
+
+        stagnant_ms = max_t - min_t
+        cnt = int(r.get("update_count") or 0)
+
+        existing = results.get((nid, ctrl))
+        if not existing or cnt > existing["update_count"]:
+            results[(nid, ctrl)] = {
+                "node_id": nid,
+                "control": ctrl,
+                "name": r.get("name") or ctrl,
+                "value": val,
+                "stagnant_minutes": round(stagnant_ms / 60000.0, 1),
+                "update_count": cnt,
+                "last_seen_ms": max_t,
+                "last_changed_ms": min_t,
+            }
+
+    return sorted(results.values(), key=lambda x: x.get("stagnant_minutes", 0), reverse=True)
 
 
 def get_hourly_sensor_baseline(

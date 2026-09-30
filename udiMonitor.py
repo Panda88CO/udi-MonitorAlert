@@ -163,7 +163,7 @@ def event_time_to_ms(event: dict) -> int | None:
 
 
 EVENT_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "event_callback.jsonl")
-VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.2")
+VERSION = os.getenv("UDI_MONITOR_VERSION", "0.2.3")
 DEFAULT_REST_REFRESH_ATTEMPTS = 3
 DEFAULT_REST_REFRESH_BACKOFF_S = 1.0
 UDI_PROFILE_MATCH_DEBUG = 1
@@ -503,7 +503,8 @@ def parse_monitor_options(
     if "(" in text and ")" in text and not re.search(r"\w+\(\d+", text):
         text = re.sub(r"\(Options:.*?\)", "", text).strip()
 
-    tokens = [t.strip() for t in re.split(r"[,;|\s]+", text) if t.strip()]
+    # Tokenize while preserving arguments inside parentheses: e.g. "static(60m, 5), stuck(45m)"
+    tokens = re.findall(r"[a-zA-Z0-9_]+(?:\([^)]*\))?", text)
     tasks = []
     ctrl_label = friendly_name or control
 
@@ -588,6 +589,38 @@ def parse_monitor_options(
                 "node_id_pattern": node_id,
                 "control_pattern": control,
                 "params": {"z_threshold": 3.0, "window_days": 30, "min_samples": 5},
+                "severity": "warning",
+                "cooldown_ms": 3600000,
+            })
+
+        # 5. Static / Frozen Data Monitor
+        elif tok_lower.startswith("static") or tok_lower.startswith("frozen") or tok_lower.startswith("stagnant"):
+            stagnant_min = 120.0
+            min_updates = 3
+            args_m = re.search(r"\(([^)]+)\)", token)
+            if args_m:
+                arg_parts = [p.strip() for p in args_m.group(1).split(",")]
+                if len(arg_parts) >= 1:
+                    num_m = re.search(r"([\d.]+)", arg_parts[0])
+                    if num_m:
+                        try:
+                            stagnant_min = float(num_m.group(1))
+                        except ValueError:
+                            pass
+                if len(arg_parts) >= 2:
+                    cnt_m = re.search(r"(\d+)", arg_parts[1])
+                    if cnt_m:
+                        try:
+                            min_updates = int(cnt_m.group(1))
+                        except ValueError:
+                            pass
+            tasks.append({
+                "task_id": f"{node_id}_{control}_static",
+                "name": f"{ctrl_label} Static Data Alarm",
+                "task_type": "static_data",
+                "node_id_pattern": node_id,
+                "control_pattern": control,
+                "params": {"max_stagnant_minutes": stagnant_min, "min_updates": min_updates},
                 "severity": "warning",
                 "cooldown_ms": 3600000,
             })
@@ -1390,7 +1423,7 @@ class Controller(Node):
 
             # Case B: Value is empty, "?", or "help" -> Provide recommendations
             if not val_str or val_str in ("?", "help"):
-                suggested_val = "spike, stuck  (Options: spike, stuck, creep, hourly, all)"
+                suggested_val = "spike, stuck  (Options: spike, stuck, creep, hourly, static, all)"
                 updated_params.pop(raw_key, None)
                 updated_params[canonical_key] = suggested_val
                 need_param_rewrite = True
@@ -2221,6 +2254,7 @@ class Controller(Node):
                     enum_value=enum_value,
                     enum_text=enum_text,
                     event_time_ms=event_time,
+                    value=value,
                 )
                 if isinstance(updated_meta, dict):
                     self.control_meta_index[(str(node_id), str(control))] = updated_meta

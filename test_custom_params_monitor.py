@@ -94,6 +94,14 @@ class TestCustomParamsMonitor(unittest.TestCase):
         self.assertEqual(stuck_task["params"]["max_silent_minutes"], 45.0)
         self.assertEqual(creep_task["params"]["max_zero_threshold"], 0.01)
 
+        # Static / Frozen monitor parsing
+        tasks_static = udiMonitor.parse_monitor_options("static(60m, 5)", "n015_dryer", "GV1", "Energy")
+        self.assertEqual(len(tasks_static), 1)
+        self.assertEqual(tasks_static[0]["task_type"], "static_data")
+        self.assertEqual(tasks_static[0]["name"], "Energy Static Data Alarm")
+        self.assertEqual(tasks_static[0]["params"]["max_stagnant_minutes"], 60.0)
+        self.assertEqual(tasks_static[0]["params"]["min_updates"], 5)
+
     def test_sync_custom_params_workflow_and_friendly_lookup(self):
         # 1. Seed static metadata in SQLite
         database.upsert_static_metadata("n012_pool", "GV1", name="Water Temperature", uom_label="°F")

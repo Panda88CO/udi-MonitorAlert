@@ -352,6 +352,43 @@ def evaluate_live_event_tasks(
                     "timestamp_ms": now_ms,
                 })
 
+        elif task_type in ("static_data", "frozen_data", "stagnant_data"):
+            max_stagnant_minutes = float(params.get("max_stagnant_minutes", 120))
+            max_stagnant_ms = int(max_stagnant_minutes * 60000)
+            min_updates = int(params.get("min_updates", 3))
+            ignore_zero = bool(params.get("ignore_zero", False))
+
+            stagnant_nodes = database.check_static_data_query(
+                node_pattern=node_id,
+                control_pattern=control,
+                max_stagnant_ms=max_stagnant_ms,
+                min_updates=min_updates,
+                ignore_zero=ignore_zero,
+                now_ms=now_ms,
+            )
+            for item in stagnant_nodes:
+                database.record_task_triggered(task_id, now_ms)
+                triggered.append({
+                    "task_id": task_id,
+                    "task_name": task.get("name") or task_id,
+                    "task_type": "static_data",
+                    "severity": task.get("severity", "warning"),
+                    "node_id": node_id,
+                    "control": control,
+                    "value": val,
+                    "score": 85,
+                    "details": {
+                        "stagnant_minutes": round(item["stagnant_minutes"], 1),
+                        "max_allowed_minutes": max_stagnant_minutes,
+                        "update_count": item["update_count"],
+                        "min_required_updates": min_updates,
+                        "last_seen_ms": item["last_seen_ms"],
+                        "last_changed_ms": item["last_changed_ms"],
+                    },
+                    "timestamp_ms": now_ms,
+                })
+                break
+
     ctrl_upper = str(control).strip().upper()
     is_timestamp = ctrl_upper in ("TIME", "TIMESTAMP") or ctrl_upper.endswith("_TIME") or ctrl_upper.endswith("_TIMESTAMP")
 
@@ -477,6 +514,47 @@ def evaluate_periodic_tasks(
                     },
                     "timestamp_ms": current_ms,
                 })
+
+        elif task_type in ("static_data", "frozen_data", "stagnant_data"):
+            max_stagnant_minutes = float(params.get("max_stagnant_minutes", 120))
+            max_stagnant_ms = int(max_stagnant_minutes * 60000)
+            min_updates = int(params.get("min_updates", 3))
+            ignore_zero = bool(params.get("ignore_zero", False))
+            max_silent_minutes = float(params.get("max_silent_minutes", max(60.0, max_stagnant_minutes * 2)))
+            max_silent_ms = int(max_silent_minutes * 60000)
+
+            stagnant_nodes = database.check_static_data_query(
+                node_pattern=node_pattern,
+                control_pattern=ctrl_pattern,
+                max_stagnant_ms=max_stagnant_ms,
+                min_updates=min_updates,
+                max_silent_ms=max_silent_ms,
+                ignore_zero=ignore_zero,
+                now_ms=current_ms,
+            )
+
+            for item in stagnant_nodes:
+                database.record_task_triggered(task_id, current_ms)
+                triggered.append({
+                    "task_id": task_id,
+                    "task_name": task.get("name") or task_id,
+                    "task_type": "static_data",
+                    "severity": task.get("severity", "warning"),
+                    "node_id": item["node_id"],
+                    "control": item["control"],
+                    "value": item.get("value"),
+                    "score": 85,
+                    "details": {
+                        "stagnant_minutes": round(item["stagnant_minutes"], 1),
+                        "max_allowed_minutes": max_stagnant_minutes,
+                        "update_count": item["update_count"],
+                        "min_required_updates": min_updates,
+                        "last_seen_ms": item["last_seen_ms"],
+                        "last_changed_ms": item["last_changed_ms"],
+                    },
+                    "timestamp_ms": current_ms,
+                })
+                break  # Record one alert per task run
 
     return triggered
 

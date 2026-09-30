@@ -69,6 +69,23 @@ class TestNotificationEngine(unittest.TestCase):
         self.assertIn("Silent / Stuck Sensor", subj)
         self.assertIn("Time Silent:   185.0 minutes", text_body)
 
+    def test_format_alert_message_static(self):
+        alert = {
+            "task_id": "dryer_energy_static",
+            "task_type": "static_data",
+            "node_id": "dryer_sensor",
+            "control": "ENERGY",
+            "value": 42.5,
+            "score": 85,
+            "severity": "warning",
+            "details": {"stagnant_minutes": 120.0, "update_count": 8},
+        }
+        subj, text_body, html_body = notification_engine.format_alert_message(alert, device_name="Dryer")
+        self.assertIn("Static / Frozen Data", subj)
+        self.assertIn("Dryer (ENERGY)", subj)
+        self.assertIn("Time Stagnant: 120.0 minutes", text_body)
+        self.assertIn("Updates Recvd: 8 updates with identical data", text_body)
+
     @patch("smtplib.SMTP")
     def test_send_email_notification_tls(self, mock_smtp):
         mock_server = MagicMock()

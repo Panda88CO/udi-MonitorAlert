@@ -25,6 +25,7 @@ TYPE_DESCRIPTIONS = {
     "slow_creep": "Continuous Creep / Leak",
     "contextual_hourly": "Hour-of-Day Deviation",
     "threshold": "Threshold Limit Exceeded",
+    "static_data": "Static / Frozen Data",
 }
 
 TYPE_CODES = {
@@ -34,6 +35,7 @@ TYPE_CODES = {
     "slow_creep": 3,
     "contextual_hourly": 4,
     "threshold": 5,
+    "static_data": 6,
 }
 
 
@@ -77,6 +79,10 @@ def format_alert_message(alert: dict[str, Any], device_name: str | None = None) 
         diag_lines.append(f"- Rate of Change:{rate_val:.2f}/sec")
     if "silent_minutes" in details:
         diag_lines.append(f"- Time Silent:   {details['silent_minutes']} minutes")
+    if "stagnant_minutes" in details:
+        diag_lines.append(f"- Time Stagnant: {details['stagnant_minutes']} minutes (Unchanging value)")
+    if "update_count" in details:
+        diag_lines.append(f"- Updates Recvd: {details['update_count']} updates with identical data")
     if "min_value_observed" in details:
         diag_lines.append(f"- Min Observed:  {details['min_value_observed']} (Floor did not reach zero)")
     if "reason" in details:

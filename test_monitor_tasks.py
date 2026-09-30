@@ -211,5 +211,72 @@ class TestMonitorTasks(unittest.TestCase):
         self.assertIn(("unmon_node", "TEMP"), remaining_records)
         self.assertIn(("n008_water", "FLOW"), remaining_records)
 
+    def test_static_data_detector(self):
+        task = {
+            "task_id": "dryer_energy_static",
+            "name": "Dryer Energy Static Alarm",
+            "task_type": "static_data",
+            "node_id_pattern": "dryer_node",
+            "control_pattern": "ENERGY",
+            "params": {"max_stagnant_minutes": 60, "min_updates": 3},
+            "severity": "warning",
+            "cooldown_ms": 3600000,
+        }
+
+        now_ms = 500000000
+
+        # Case 1: Healthy fluctuating node - values change over the last 90 minutes
+        for i in range(5):
+            t = now_ms - (90 - i * 15) * 60000
+            database.insert_dynamic_event("fluctuating_node", "ENERGY", 10.0 + i * 0.5, event_time_ms=t)
+
+        healthy_task = dict(task)
+        healthy_task["task_id"] = "healthy_check"
+        healthy_task["node_id_pattern"] = "fluctuating_node"
+        trig_healthy = ml_engine.evaluate_periodic_tasks(tasks=[healthy_task], now_ms=now_ms)
+        self.assertEqual(len(trig_healthy), 0)
+
+        # Case 2: Static / frozen node - receives updates every 15 minutes, but value remains 25.0
+        for i in range(6):
+            t = now_ms - (75 - i * 15) * 60000
+            database.insert_dynamic_event("dryer_node", "ENERGY", 25.0, event_time_ms=t)
+
+        trig_static = ml_engine.evaluate_periodic_tasks(tasks=[task], now_ms=now_ms)
+        self.assertEqual(len(trig_static), 1)
+        self.assertEqual(trig_static[0]["task_type"], "static_data")
+        self.assertEqual(trig_static[0]["node_id"], "dryer_node")
+        self.assertEqual(trig_static[0]["control"], "ENERGY")
+        self.assertEqual(trig_static[0]["value"], 25.0)
+        self.assertGreaterEqual(trig_static[0]["details"]["stagnant_minutes"], 60.0)
+        self.assertGreaterEqual(trig_static[0]["details"]["update_count"], 3)
+
+        # Case 3: Test direct database.check_static_data_query with ignore_zero
+        database.insert_dynamic_event("zero_node", "FLOW", 0.0, event_time_ms=now_ms - 80 * 60000)
+        database.insert_dynamic_event("zero_node", "FLOW", 0.0, event_time_ms=now_ms - 40 * 60000)
+        database.insert_dynamic_event("zero_node", "FLOW", 0.0, event_time_ms=now_ms)
+
+        res_zero = database.check_static_data_query(
+            node_pattern="zero_node",
+            control_pattern="FLOW",
+            max_stagnant_ms=60 * 60000,
+            min_updates=3,
+            ignore_zero=True,
+            now_ms=now_ms,
+        )
+        self.assertEqual(len(res_zero), 0)
+
+        res_zero_allowed = database.check_static_data_query(
+            node_pattern="zero_node",
+            control_pattern="FLOW",
+            max_stagnant_ms=60 * 60000,
+            min_updates=3,
+            ignore_zero=False,
+            now_ms=now_ms,
+        )
+        self.assertEqual(len(res_zero_allowed), 1)
+        self.assertEqual(res_zero_allowed[0]["value"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
+
